@@ -70,7 +70,7 @@
             top: 0; left: 0; width: 100%; height: 100%;
             background: black;
             z-index: 9999;
-            display: none; /* Hidden by default */
+            display: none; 
             flex-direction: column;
         }
 
@@ -80,15 +80,17 @@
             border: none;
         }
 
+        /* Botão Sair Reduzido */
         #close-game {
             position: absolute;
-            top: 20px;
-            left: 20px;
+            top: 15px;
+            left: 15px;
             z-index: 10000;
             background: rgba(0, 0, 0, 0.7);
             color: var(--neon-cyan);
             border: 1px solid var(--neon-cyan);
-            padding: 8px 20px;
+            padding: 6px 12px;
+            font-size: 0.8rem;
             font-weight: bold;
             text-transform: uppercase;
             cursor: pointer;
@@ -96,7 +98,8 @@
             transition: 0.3s;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
+            border-radius: 4px;
         }
 
         #close-game:hover {
@@ -111,8 +114,8 @@
     <!-- Container do Jogo (Oculto Inicialmente) -->
     <div id="game-overlay">
         <button id="close-game" onclick="closeGame()">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H59.31l58.35,58.34a8,8,0,0,1-11.32,11.32l-72-72a8,8,0,0,1,0-11.32l72-72a8,8,0,0,1,11.32,11.32L59.31,120H216A8,8,0,0,1,224,128Z"></path></svg>
-            Sair do Jogo
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M224,128a8,8,0,0,1-8,8H59.31l58.35,58.34a8,8,0,0,1-11.32,11.32l-72-72a8,8,0,0,1,0-11.32l72-72a8,8,0,0,1,11.32,11.32L59.31,120H216A8,8,0,0,1,224,128Z"></path></svg>
+            Sair
         </button>
         <iframe id="game-iframe" src=""></iframe>
     </div>
@@ -120,7 +123,7 @@
     <!-- Interface do Menu -->
     <header class="max-w-6xl mx-auto text-center mb-12" id="main-header">
         <h1 class="cyber-title text-4xl md:text-6xl mb-2 text-cyan-400">Cyber Arcade</h1>
-        <p class="text-pink-500 font-bold tracking-widest uppercase text-sm">Neural Interface v4.0 // Wrapper Mode</p>
+        <p class="text-pink-500 font-bold tracking-widest uppercase text-sm">Neural Interface v4.1 // Streamlined UI</p>
         <div class="h-1 w-32 bg-cyan-500 mx-auto mt-4 shadow-[0_0_10px_#00f3ff]"></div>
     </header>
 
@@ -134,7 +137,7 @@
                     <h2 class="text-2xl font-bold mb-3 text-white">Krunker JS</h2>
                     <p class="text-gray-400 mb-6 leading-relaxed">FPS rápido com mapas procedurais e bots.</p>
                 </div>
-                <div class="neon-button rounded">Iniciar Módulo</div>
+                <div class="neon-button rounded shadow-sm">Jogar</div>
             </div>
 
             <!-- Tower Climb -->
@@ -144,7 +147,7 @@
                     <h2 class="text-2xl font-bold mb-3 text-white">Tower Bounce</h2>
                     <p class="text-gray-400 mb-6 leading-relaxed">Suba em plataformas infinitas usando momentum.</p>
                 </div>
-                <div class="neon-button rounded" style="border-color: #ff00ff; color: #ff00ff; box-shadow: inset 0 0 5px #ff00ff;">Aceder à Rede</div>
+                <div class="neon-button rounded shadow-sm" style="border-color: #ff00ff; color: #ff00ff; box-shadow: inset 0 0 5px #ff00ff;">Jogar</div>
             </div>
 
             <!-- Rhythm Game -->
@@ -154,7 +157,7 @@
                     <h2 class="text-2xl font-bold mb-3 text-white">Neon Shredder</h2>
                     <p class="text-gray-400 mb-6 leading-relaxed">Desafio de ritmo intenso com cores neon.</p>
                 </div>
-                <div class="neon-button rounded">Sincronizar</div>
+                <div class="neon-button rounded shadow-sm">Jogar</div>
             </div>
 
             <!-- Physics Sim -->
@@ -164,7 +167,7 @@
                     <h2 class="text-2xl font-bold mb-3 text-white">Bounce Balls</h2>
                     <p class="text-gray-400 mb-6 leading-relaxed">Simulação de física elástica com áudio harmónico.</p>
                 </div>
-                <div class="neon-button rounded" style="border-color: #ff00ff; color: #ff00ff; box-shadow: inset 0 0 5px #ff00ff;">Ver Lab</div>
+                <div class="neon-button rounded shadow-sm" style="border-color: #ff00ff; color: #ff00ff; box-shadow: inset 0 0 5px #ff00ff;">Jogar</div>
             </div>
 
             <!-- Music Station -->
@@ -174,7 +177,7 @@
                     <h2 class="text-2xl font-bold mb-3 text-white">Synth Station</h2>
                     <p class="text-gray-400 mb-6 leading-relaxed">Estação de áudio completa com sequenciador.</p>
                 </div>
-                <div class="neon-button rounded">Abrir Consola</div>
+                <div class="neon-button rounded shadow-sm">Jogar</div>
             </div>
 
         </div>
@@ -194,26 +197,18 @@
         const mainFooter = document.getElementById('main-footer');
 
         function openGame(url) {
-            // 1. Atribui o URL ao iframe
             iframe.src = url;
-            // 2. Mostra o overlay
             overlay.style.display = 'flex';
-            // 3. Esconde o scroll da página principal para não dar conflito
             document.body.style.overflow = 'hidden';
-            // 4. (Opcional) Esconde o menu para poupar recursos
             mainHeader.style.display = 'none';
             mainContent.style.display = 'none';
             mainFooter.style.display = 'none';
         }
 
         function closeGame() {
-            // 1. Limpa o iframe para parar o som do jogo
             iframe.src = "";
-            // 2. Esconde o overlay
             overlay.style.display = 'none';
-            // 3. Devolve o scroll ao corpo
             document.body.style.overflow = 'auto';
-            // 4. Mostra o menu de volta
             mainHeader.style.display = 'block';
             mainContent.style.display = 'block';
             mainFooter.style.display = 'block';
