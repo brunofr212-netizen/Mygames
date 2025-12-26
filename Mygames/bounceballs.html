@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perfect Elasticity Simulation</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #111;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #start-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+        }
+
+        h1 {
+            font-weight: 300;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+        }
+
+        p {
+            color: #aaa;
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: #555;
+            font-size: 12px;
+            pointer-events: none;
+        }
+
+        #speed-controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 5;
+            background: rgba(30, 30, 30, 0.6);
+            padding: 10px 15px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255,255,255,0.1);
+            font-size: 14px;
+        }
+
+        .action-btn {
+            position: absolute;
+            right: 20px;
+            z-index: 5;
+            background: rgba(30, 30, 30, 0.6);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            backdrop-filter: blur(4px);
+            font-family: inherit;
+            font-size: 14px;
+            transition: all 0.2s;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .action-btn:hover {
+            transform: scale(1.05);
+            background: rgba(50, 50, 50, 0.8);
+        }
+
+        .action-btn:active {
+            transform: scale(0.95);
+        }
+
+        #add-ball-btn {
+            top: 20px;
+            color: #00d2ff;
+        }
+
+        #collision-btn {
+            top: 70px;
+            color: #aaa;
+            width: 140px;
+        }
+
+        #collision-btn.active {
+            color: #00d2ff;
+            background: rgba(0, 210, 255, 0.1);
+            border-color: rgba(0, 210, 255, 0.3);
+        }
+
+        input[type=range] {
+            cursor: pointer;
+            accent-color: #00d2ff;
+        }
+        
+        #speedValue {
+            font-family: monospace;
+            color: #00d2ff;
+            min-width: 40px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="start-overlay">
+        <h1>SIMULATION</h1>
+        <p>Click anywhere to start</p>
+    </div>
+
+    <div id="speed-controls">
+        <label for="speedSlider">Speed</label>
+        <input type="range" id="speedSlider" min="0.1" max="2.0" step="0.1" value="0.1">
+        <span id="speedValue">0.1x</span>
+    </div>
+
+    <button id="add-ball-btn" class="action-btn">Add Ball</button>
+    <button id="collision-btn" class="action-btn">Collisions: OFF</button>
+
+    <div id="controls">
+        Gravity: On | Friction: 0% | Restitution: 100%
+    </div>
+
+    <canvas id="simCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const overlay = document.getElementById('start-overlay');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+        const addBallBtn = document.getElementById('add-ball-btn');
+        const collisionBtn = document.getElementById('collision-btn');
+
+        // Configuration
+        const config = {
+            gravity: 0.6,         // Gravity force 
+            friction: 0.0,        // 0.0 = no air resistance
+            bounce: 1.0,          // 1.0 = perfect elastic collision
+            subSteps: 16,         // Increased substeps for better stability
+            containerThickness: 5,
+            ballCollisions: false
+        };
+
+        // State
+        let width, height;
+        let centerX, centerY;
+        let containerRadius;
+        let isRunning = false;
+        let animationId;
+
+        // Audio Context
+        let audioCtx;
+
+        // Balls Array
+        let balls = [];
+
+        // Speed Slider Logic
+        speedSlider.addEventListener('input', (e) => {
+            speedValue.textContent = parseFloat(e.target.value).toFixed(1) + 'x';
+        });
+
+        // Toggle Collisions
+        collisionBtn.addEventListener('click', () => {
+            config.ballCollisions = !config.ballCollisions;
+            if (config.ballCollisions) {
+                collisionBtn.textContent = "Collisions: ON";
+                collisionBtn.classList.add('active');
+            } else {
+                collisionBtn.textContent = "Collisions: OFF";
+                collisionBtn.classList.remove('active');
+            }
+        });
+
+        // Initialize Audio
+        function initAudio() {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+        }
+
+        // Play Sound function
+        function playBounceSound(speed) {
+            if (!audioCtx) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            // Modulate pitch based on speed
+            const speedFactor = Math.min(speed, 25); 
+            // Randomize base freq slightly for variety between balls
+            const baseFreq = 220 + (Math.random() * 50 - 25); 
+            osc.frequency.value = baseFreq + (speedFactor * 10);
+            osc.type = 'sine';
+
+            // Envelope for a "ping" sound
+            const now = audioCtx.currentTime;
+            gainNode.gain.setValueAtTime(0, now);
+            gainNode.gain.linearRampToValueAtTime(Math.min(speed/20, 0.5), now + 0.01);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+            osc.start(now);
+            osc.stop(now + 0.3);
+        }
+
+        // Resize handler
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            centerX = width / 2;
+            centerY = height / 2;
+            
+            // Container is 80% of the smallest dimension
+            containerRadius = Math.min(width, height) * 0.4;
+
+            // Reset balls only if not running (initial load)
+            if (!isRunning) {
+                balls = [];
+                spawnBall();
+            }
+        }
+
+        function spawnBall() {
+            const radius = 15;
+            // Spawn at the highest spot inside the circle
+            const x = centerX;
+            const y = centerY - containerRadius + radius + 2;
+            
+            // Random tint of cyan/blue for visual distinction
+            const hue = 180 + Math.random() * 40; // 180-220
+            const color = `hsl(${hue}, 100%, 50%)`;
+
+            balls.push({
+                x: x,
+                y: y,
+                vx: (Math.random() - 0.5) * 8, // Random initial horizontal velocity
+                vy: 0,
+                radius: radius,
+                color: color,
+                trail: []
+            });
+        }
+
+        function update() {
+            // Get current time scaling factor
+            const timeScale = parseFloat(speedSlider.value);
+
+            // Calculate delta time for each sub-step
+            const dt = timeScale / config.subSteps;
+            
+            for (let k = 0; k < config.subSteps; k++) {
+                
+                // 1. Move and Wall Collisions
+                balls.forEach(ball => {
+                    // Apply Gravity
+                    ball.vy += config.gravity * dt;
+                    
+                    // Apply Air Friction (None)
+                    if (config.friction > 0) {
+                        ball.vx *= (1 - config.friction * dt);
+                        ball.vy *= (1 - config.friction * dt);
+                    }
+
+                    // Update Position 
+                    ball.x += ball.vx * dt;
+                    ball.y += ball.vy * dt;
+
+                    // Collision Detection with Circular Container
+                    const dx = ball.x - centerX;
+                    const dy = ball.y - centerY;
+                    const distFromCenter = Math.sqrt(dx * dx + dy * dy);
+
+                    // If distance + ball radius > container radius, we are hitting the wall
+                    if (distFromCenter + ball.radius > containerRadius) {
+                        
+                        // Calculate Normal
+                        const nx = -dx / distFromCenter;
+                        const ny = -dy / distFromCenter;
+
+                        // Correct Position (Push ball back inside)
+                        const overlap = distFromCenter + ball.radius - containerRadius;
+                        ball.x += nx * overlap;
+                        ball.y += ny * overlap;
+
+                        // Reflect Velocity
+                        const dotProduct = ball.vx * nx + ball.vy * ny;
+                        
+                        if (dotProduct < 0) {
+                            ball.vx = ball.vx - 2 * dotProduct * nx;
+                            ball.vy = ball.vy - 2 * dotProduct * ny;
+
+                            // Apply bounce efficiency
+                            ball.vx *= config.bounce;
+                            ball.vy *= config.bounce;
+
+                            // Play Sound
+                            const speed = Math.sqrt(ball.vx*ball.vx + ball.vy*ball.vy);
+                            playBounceSound(speed);
+                        }
+                    }
+                });
+
+                // 2. Ball-to-Ball Collisions
+                if (config.ballCollisions) {
+                    for (let i = 0; i < balls.length; i++) {
+                        for (let j = i + 1; j < balls.length; j++) {
+                            const b1 = balls[i];
+                            const b2 = balls[j];
+                            
+                            const dx = b2.x - b1.x;
+                            const dy = b2.y - b1.y;
+                            const distance = Math.sqrt(dx * dx + dy * dy);
+                            const minDistance = b1.radius + b2.radius;
+
+                            if (distance < minDistance) {
+                                // Normal vector pointing from b1 to b2
+                                const nx = dx / distance;
+                                const ny = dy / distance;
+
+                                // Separate balls (overlap resolution)
+                                const overlap = minDistance - distance;
+                                // Move each ball away half the overlap
+                                const separationX = nx * overlap * 0.5;
+                                const separationY = ny * overlap * 0.5;
+                                
+                                b1.x -= separationX;
+                                b1.y -= separationY;
+                                b2.x += separationX;
+                                b2.y += separationY;
+
+                                // Relative velocity
+                                const dvx = b1.vx - b2.vx;
+                                const dvy = b1.vy - b2.vy;
+                                
+                                // Velocity along normal (impact speed)
+                                const p = dvx * nx + dvy * ny;
+
+                                // Only collide if moving towards each other (p > 0)
+                                if (p > 0) {
+                                    // Elastic collision between equal masses: 
+                                    // Simply exchange velocity components along the normal.
+                                    // V1' = V1 - p * n
+                                    // V2' = V2 + p * n
+                                    
+                                    b1.vx -= p * nx;
+                                    b1.vy -= p * ny;
+                                    b2.vx += p * nx;
+                                    b2.vy += p * ny;
+
+                                    // Play Sound (based on impact intensity)
+                                    playBounceSound(Math.abs(p));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Trail Logic
+            if (frameCount % 2 === 0) {
+                balls.forEach(ball => {
+                    ball.trail.push({x: ball.x, y: ball.y});
+                    if (ball.trail.length > 20) ball.trail.shift();
+                });
+            }
+        }
+
+        let frameCount = 0;
+
+        function draw() {
+            ctx.fillStyle = '#111'; 
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw Container
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, containerRadius, 0, Math.PI * 2);
+            ctx.strokeStyle = '#444';
+            ctx.lineWidth = config.containerThickness;
+            ctx.stroke();
+            
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#444';
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            balls.forEach(ball => {
+                // Draw Ball Trail
+                if (ball.trail.length > 1) {
+                    ctx.beginPath();
+                    ctx.moveTo(ball.trail[0].x, ball.trail[0].y);
+                    for (let i = 1; i < ball.trail.length; i++) {
+                        ctx.lineTo(ball.trail[i].x, ball.trail[i].y);
+                    }
+                    // Use ball color for trail but transparent
+                    ctx.strokeStyle = ball.color.replace(')', ', 0.3)').replace('hsl', 'hsla'); 
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+
+                // Draw Ball
+                ctx.beginPath();
+                ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+                ctx.fillStyle = ball.color;
+                ctx.fill();
+                
+                // Ball Highlight
+                ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                ctx.beginPath();
+                ctx.arc(ball.x - ball.radius*0.3, ball.y - ball.radius*0.3, ball.radius/3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function loop() {
+            if (!isRunning) return;
+            frameCount++;
+            update();
+            draw();
+            animationId = requestAnimationFrame(loop);
+        }
+
+        // Add Ball Button Logic
+        addBallBtn.addEventListener('click', () => {
+            if(!isRunning) {
+               initAudio();
+               overlay.style.opacity = '0';
+               setTimeout(() => overlay.style.display = 'none', 500);
+               resize(); 
+               isRunning = true;
+               loop();
+               spawnBall();
+            } else {
+                spawnBall();
+            }
+        });
+
+        // Start Handler
+        overlay.addEventListener('click', () => {
+            if (isRunning) return;
+            initAudio(); 
+            overlay.style.opacity = '0';
+            setTimeout(() => overlay.style.display = 'none', 500);
+            resize();
+            isRunning = true;
+            loop();
+        });
+
+        window.addEventListener('resize', resize);
+        
+        resize();
+        // Initial draw
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, width, height);
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, containerRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = '#444';
+        ctx.lineWidth = config.containerThickness;
+        ctx.stroke();
+
+    </script>
+</body>
+</html>

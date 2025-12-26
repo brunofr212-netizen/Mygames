@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tower Bounce</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden; /* Prevent scrolling */
+            touch-action: none; /* Prevent default touch actions */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px; /* The "Tower" width constraint */
+            height: 100%;
+            background: #222;
+            border-left: 2px solid #444;
+            border-right: 2px solid #444;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Let clicks pass through to canvas/controls */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            font-size: 20px;
+            font-weight: bold;
+            text-shadow: 1px 1px 0 #000;
+        }
+
+        .hud-column {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .combo-meter {
+            color: #ffcc00;
+            text-align: right;
+        }
+
+        /* Powerup UI Styles */
+        .powerup-display {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 16px;
+            margin-top: 5px;
+            opacity: 0.8;
+        }
+
+        #jetpack-counter { color: #ef4444; }
+        
+        #slowmo-btn {
+            pointer-events: auto; /* Clickable */
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid #3b82f6;
+            border-radius: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+            color: #3b82f6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 60px;
+            transition: transform 0.1s;
+        }
+        
+        #slowmo-btn:active { transform: scale(0.95); }
+        #slowmo-btn.disabled { opacity: 0.3; border-color: #555; color: #555; pointer-events: none; }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #111;
+            margin-top: 4px;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        #slowmo-bar-fill {
+            width: 0%;
+            height: 100%;
+            background: #3b82f6;
+            transition: width 0.1s linear;
+        }
+
+        #start-screen, #game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            pointer-events: auto;
+            z-index: 10;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        h1 { margin: 0 0 20px 0; font-size: 40px; color: #4ade80; text-transform: uppercase; letter-spacing: 2px; }
+        p { font-size: 18px; color: #ccc; max-width: 80%; line-height: 1.5; }
+        .btn {
+            margin-top: 20px;
+            padding: 15px 40px;
+            background: #4ade80;
+            color: #000;
+            border: none;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: transform 0.1s;
+        }
+        .btn:active { transform: scale(0.95); }
+
+        /* Speed Selection Styles */
+        .speed-selector {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .speed-btn {
+            padding: 10px 15px;
+            background: #333;
+            color: #fff;
+            border: 2px solid #555;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        .speed-btn.active {
+            background: #ffaa00;
+            color: #000;
+            border-color: #ffcc00;
+            transform: scale(1.1);
+        }
+        .speed-label {
+            color: #aaa;
+            font-size: 14px;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        /* Touch controls overlay for mobile hint */
+        .controls-hint {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+            opacity: 0.5;
+            font-size: 12px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="ui-layer">
+            <div class="hud-top">
+                <div class="hud-column">
+                    <div id="score-display">Height: 0m</div>
+                    <div class="powerup-display" id="jetpack-counter">
+                        <span>🔥 Jetpack: 0</span>
+                    </div>
+                </div>
+                
+                <div class="hud-column" style="align-items: flex-end;">
+                    <div id="combo-display" class="combo-meter">Combo: 0</div>
+                    <div id="slowmo-btn" class="disabled" onclick="activateSlowmo()">
+                        <div style="display:flex; align-items:center; gap:5px;">
+                            <span>⏱️ Slowmo</span>
+                            <span id="slowmo-count">0</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div id="slowmo-bar-fill"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="controls-hint">
+                Move: Arrows/A-D | Jump: Space | Superjump: Hold V | Slowmo: S
+            </div>
+        </div>
+
+        <div id="start-screen">
+            <h1>Tower Bounce</h1>
+            <p>Climb the procedurally generated tower.</p>
+            <p>Hit the <span style="color:#ffaa00">Magma Pads</span> to build your Combo!</p>
+            
+            <div style="margin-top: 20px;">
+                <div class="speed-label">Select Game Speed</div>
+                <div class="speed-selector">
+                    <button class="speed-btn" onclick="selectSpeed(1)">1x</button>
+                    <button class="speed-btn" onclick="selectSpeed(2)">2x</button>
+                    <button class="speed-btn" onclick="selectSpeed(3)">3x</button>
+                    <button class="speed-btn" onclick="selectSpeed(4)">4x</button>
+                    <button class="speed-btn" onclick="selectSpeed(5)">5x</button>
+                    <button class="speed-btn active" onclick="selectSpeed(6)">6x</button>
+                </div>
+            </div>
+
+            <button class="btn" onclick="startGame()">START CLIMBING</button>
+        </div>
+
+        <div id="game-over-screen" class="hidden">
+            <h1 style="color: #ef4444">FALLEN</h1>
+            <p>You fell to the bottom of the tower.</p>
+            <p id="final-score">Max Height: 0m</p>
+            <button class="btn" onclick="resetGame()">TRY AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score-display');
+        const comboDisplay = document.getElementById('combo-display');
+        const jetpackDisplay = document.getElementById('jetpack-counter');
+        const slowmoBtn = document.getElementById('slowmo-btn');
+        const slowmoCountDisplay = document.getElementById('slowmo-count');
+        const slowmoBarFill = document.getElementById('slowmo-bar-fill');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const startScreen = document.getElementById('start-screen');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const speedBtns = document.querySelectorAll('.speed-btn');
+
+        // Game State
+        let gameRunning = false;
+        let score = 0;
+        let cameraY = 0;
+        let width, height;
+        let gameSpeed = 1.0; 
+        let lastTime = 0;
+
+        // Feature State
+        let jetpacks = 0;
+        let nextJetpackMilestone = 2000;
+        let isJetpacking = false;
+        let jetpackEndScore = 0;
+        let jetpackFrame = 0;
+
+        let slowmoCharges = 0;
+        let nextSlowmoMilestone = 1500;
+        let slowmoActive = false;
+        let slowmoTimer = 0;
+        const SLOWMO_DURATION = 10; // seconds
+
+        // Superjump State
+        let jumpChargeStart = 0;
+        let isChargingJump = false;
+        
+        // Configuration
+        const BASE_GRAVITY = 0.5;
+        const FRICTION = 0.8;
+        const MOVE_SPEED = 1.2; 
+        const MAX_SPEED = 8;
+        const JUMP_FORCE = -12; 
+        const TRAMPOLINE_BASE_FORCE = -16;
+        const COMBO_BONUS = -3;
+        const MAX_COMBO = 5; 
+        
+        // Input State
+        const keys = {
+            ArrowLeft: false,
+            ArrowRight: false,
+            a: false,
+            d: false,
+            Space: false,
+            s: false,
+            ArrowUp: false,
+            v: false,
+            V: false
+        };
+
+        // Entities
+        let player = {
+            x: 0,
+            y: 0,
+            w: 30,
+            h: 30,
+            vx: 0,
+            vy: 0,
+            color: '#4ade80',
+            combo: 0,
+            grounded: false,
+            currentPlatform: null // Track platform for movement inheritance
+        };
+
+        let platforms = [];
+        let particles = [];
+        let wallNodes = []; 
+        let bgEntities = []; // For Surface/Trees
+        let surfaceGenerated = false;
+
+        // --- Core Functions ---
+
+        function resize() {
+            const container = document.getElementById('game-container');
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+            
+            // Re-center player if game hasn't started
+            if (!gameRunning) {
+                player.x = width / 2 - player.w / 2;
+                player.y = height - 150;
+            }
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        function selectSpeed(level) {
+            speedBtns.forEach(btn => btn.classList.remove('active'));
+            speedBtns[level-1].classList.add('active');
+            gameSpeed = 0.5 + (level - 1) * 0.1;
+        }
+
+        function initLevel() {
+            platforms = [];
+            platforms.push({
+                x: 0,
+                y: height - 20,
+                w: width,
+                h: 20,
+                type: 'ground',
+                moving: false,
+                moveSpeed: 0,
+                moveDir: 1
+            });
+
+            // Pre-fill screen with platforms
+            let currentY = height - 150;
+            while (currentY > -height) { 
+                generatePlatform(currentY);
+                currentY -= 120;
+            }
+
+            // Init Walls
+            let wallY = height + 100;
+            while (wallY > -height) {
+                generateWallNode(wallY, 0); 
+                wallY -= 40; 
+            }
+        }
+
+        function generateWallNode(y, currentScore) {
+            // FIX: Convert pixel offset to score units (meters)
+            // Score = pixels / 10 approximately in this logic
+            let absoluteHeight = currentScore + (height - y) / 10; 
+
+            if (absoluteHeight < 1550) { 
+                // Homogenous Wall Generation
+                const baseW = 30;
+                const variance = 20;
+
+                const leftW = Math.max(0, baseW + (Math.random() * variance - variance/2));
+                const rightW = Math.max(0, baseW + (Math.random() * variance - variance/2));
+
+                // Generate Decoration Props
+                let decor = [];
+                // Stone (Embedded rock)
+                if (Math.random() < 0.4) {
+                    decor.push({
+                        type: 'stone',
+                        xOff: (Math.random() * 10) + 5, // offset from edge inside wall
+                        size: 5 + Math.random() * 8,
+                        side: Math.random() < 0.5 ? 'left' : 'right'
+                    });
+                }
+                // Root (Hanging down)
+                if (Math.random() < 0.25) {
+                    decor.push({
+                        type: 'root',
+                        length: 10 + Math.random() * 20,
+                        curve: (Math.random() - 0.5) * 20,
+                        side: Math.random() < 0.5 ? 'left' : 'right'
+                    });
+                }
+                // Moss (Green patch on edge)
+                if (Math.random() < 0.3) {
+                    decor.push({
+                        type: 'moss',
+                        size: 4 + Math.random() * 6,
+                        side: Math.random() < 0.5 ? 'left' : 'right'
+                    });
+                }
+
+                wallNodes.push({
+                    y: y,
+                    left: leftW,
+                    right: rightW,
+                    decor: decor,
+                    color: '#2b2118' // Darker, richer brown base
+                });
+            } else if (!surfaceGenerated) {
+                // Generate Surface Layer (Grass + Trees) exactly once at cutoff
+                generateSurface(y);
+                surfaceGenerated = true;
+            }
+        }
+
+        function generateSurface(y) {
+            // Add Surface Ground
+            bgEntities.push({
+                type: 'ground_line',
+                y: y,
+                color: '#4d7c2a'
+            });
+
+            // Add Trees
+            const treeCount = 4 + Math.floor(Math.random() * 4);
+            for(let i=0; i<treeCount; i++) {
+                const tx = 20 + Math.random() * (width - 40);
+                const th = 40 + Math.random() * 60; // tree height
+                const tw = 8 + Math.random() * 6; // trunk width
+                
+                bgEntities.push({
+                    type: 'tree',
+                    x: tx,
+                    y: y,
+                    h: th,
+                    w: tw
+                });
+            }
+        }
+
+        function generatePlatform(targetY) {
+            const progress = Math.min(score / 8000, 1.0);
+            
+            // 1. Platform Width Scaling
+            const minAllowedW = 100 - (progress * 50); 
+            const maxAllowedW = 200 - (progress * 110);
+            const pWidth = Math.floor(Math.random() * (maxAllowedW - minAllowedW + 1)) + minAllowedW;
+
+            let xMin = 10;
+            let xMax = width - pWidth - 10;
+            if (score < 1500) {
+                xMin = 50;
+                xMax = width - pWidth - 50;
+            }
+            if (xMax < xMin) xMax = xMin; 
+
+            const pX = xMin + Math.random() * (xMax - xMin);
+            
+            // 2. Trampoline Logic
+            const hasTrampoline = Math.random() < 0.8;
+            let tWidth = 0;
+            let tX = 0;
+
+            if (hasTrampoline) {
+                const startRatio = 0.7;
+                const currentRatio = Math.max(0.1, startRatio - (progress * 0.6));
+                tWidth = Math.max(30, pWidth * currentRatio);
+                tX = pX + (pWidth - tWidth) / 2;
+            }
+
+            // 3. Moving Platforms
+            let isMoving = false;
+            let moveSpeed = 0;
+            if (score > 3000) {
+                if (Math.random() < 0.4) {
+                    isMoving = true;
+                    const moveProgress = Math.min((score - 3000) / 5000, 1.0);
+                    moveSpeed = 1.0 + (moveProgress * 3.0);
+                }
+            }
+
+            platforms.push({
+                x: pX,
+                y: targetY,
+                w: pWidth,
+                h: 20,
+                type: 'platform',
+                hasTrampoline: hasTrampoline,
+                tX: tX,
+                tW: tWidth,
+                moving: isMoving,
+                moveSpeed: moveSpeed,
+                moveDir: Math.random() < 0.5 ? 1 : -1
+            });
+        }
+
+        function startGame() {
+            startScreen.classList.add('hidden');
+            resetGameLogic();
+            gameRunning = true;
+            lastTime = performance.now();
+            loop(lastTime);
+        }
+
+        function resetGame() {
+            gameOverScreen.classList.add('hidden');
+            startScreen.classList.remove('hidden');
+            gameRunning = false; 
+        }
+
+        function resetGameLogic() {
+            player.x = width / 2 - player.w / 2;
+            player.y = height - 100;
+            player.vx = 0;
+            player.vy = 0;
+            player.combo = 0;
+            score = 0;
+            cameraY = 0;
+            player.currentPlatform = null;
+            
+            // Reset Features
+            jetpacks = 0;
+            nextJetpackMilestone = 2000;
+            isJetpacking = false;
+            
+            slowmoCharges = 0;
+            nextSlowmoMilestone = 1500;
+            slowmoActive = false;
+            slowmoTimer = 0;
+            
+            isChargingJump = false;
+            jumpChargeStart = 0;
+
+            particles = [];
+            wallNodes = [];
+            bgEntities = [];
+            surfaceGenerated = false;
+            initLevel();
+            updateUI();
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            finalScoreDisplay.innerText = `Max Height: ${Math.floor(score)}m`;
+            gameOverScreen.classList.remove('hidden');
+        }
+
+        // --- Feature Logic ---
+
+        function checkMilestones() {
+            // Jetpack: Every 2000m
+            if (score >= nextJetpackMilestone) {
+                jetpacks++;
+                nextJetpackMilestone += 2000;
+                createTextParticle(width/2, height/2, "+1 Jetpack!", "#ef4444");
+                updateUI();
+            }
+
+            // Slowmo: Every 1500m
+            if (score >= nextSlowmoMilestone) {
+                slowmoCharges++;
+                nextSlowmoMilestone += 1500;
+                createTextParticle(width/2, height/2 + 30, "+1 Slowmo!", "#3b82f6");
+                updateUI();
+            }
+        }
+
+        function activateSlowmo() {
+            if (slowmoCharges > 0 && !slowmoActive && gameRunning) {
+                slowmoCharges--;
+                slowmoActive = true;
+                slowmoTimer = SLOWMO_DURATION;
+                updateUI();
+            }
+        }
+
+        function activateJetpack() {
+            isJetpacking = true;
+            jetpackEndScore = score + 400;
+            jetpacks--;
+            // Launch upwards
+            player.vy = -12; 
+            player.y = Math.min(player.y, height - 50); // Ensure on screen
+            updateUI();
+            
+            // Cancel jump charge if flying
+            isChargingJump = false;
+            player.currentPlatform = null;
+        }
+
+        function updateUI() {
+            jetpackDisplay.innerHTML = `<span>🔥 Jetpack: ${jetpacks}</span>`;
+            
+            slowmoCountDisplay.innerText = slowmoCharges;
+            if (slowmoCharges > 0 || slowmoActive) {
+                slowmoBtn.classList.remove('disabled');
+            } else {
+                slowmoBtn.classList.add('disabled');
+            }
+        }
+
+        // --- Physics & Logic ---
+
+        function update(deltaTime) {
+            // deltaTime is in ms
+            // Convert to seconds for timer
+            const dtSeconds = deltaTime / 1000;
+
+            // 1. Calculate Modifiers based on Slowmo
+            let physicsScale = 1.0;
+            let inputScale = 1.0;
+
+            if (slowmoActive) {
+                physicsScale = 0.25; // 25% gravity/speed
+                inputScale = 0.60;   // 60% input speed (Advantage)
+                
+                // Tick Timer using Real Time
+                slowmoTimer -= dtSeconds;
+                if (slowmoTimer <= 0) {
+                    slowmoActive = false;
+                    slowmoTimer = 0;
+                }
+                
+                // Update Bar
+                let pct = (slowmoTimer / SLOWMO_DURATION) * 100;
+                slowmoBarFill.style.width = `${pct}%`;
+            } else {
+                slowmoBarFill.style.width = '0%';
+            }
+
+            checkMilestones();
+
+            // Apply Moving Platforms Logic (and store reference updates)
+            platforms.forEach(p => {
+                if (p.moving) {
+                    p.x += p.moveSpeed * p.moveDir * gameSpeed * physicsScale;
+                    p.tX += p.moveSpeed * p.moveDir * gameSpeed * physicsScale; 
+
+                    if (p.x <= 0) {
+                        p.x = 0;
+                        p.moveDir = 1;
+                        if (p.hasTrampoline) p.tX = p.x + (p.w - p.tW) / 2;
+                    } else if (p.x + p.w >= width) {
+                        p.x = width - p.w;
+                        p.moveDir = -1;
+                        if (p.hasTrampoline) p.tX = p.x + (p.w - p.tW) / 2;
+                    }
+                }
+            });
+
+            // Platform Inheritance: Move player if grounded on moving platform
+            // Use current frame's grounded status from previous frame's check
+            if (player.grounded && player.currentPlatform && player.currentPlatform.moving) {
+                 const pSpeed = player.currentPlatform.moveSpeed * player.currentPlatform.moveDir * gameSpeed * physicsScale;
+                 player.x += pSpeed;
+            }
+
+            // Player Movement (Lateral)
+            if (keys.ArrowLeft || keys.a) {
+                player.vx -= MOVE_SPEED * gameSpeed * inputScale;
+            }
+            if (keys.ArrowRight || keys.d) {
+                player.vx += MOVE_SPEED * gameSpeed * inputScale;
+            }
+
+            // Keyboard trigger for slowmo
+            if (keys.s) {
+                activateSlowmo();
+                keys.s = false; // Toggle/One-shot
+            }
+
+            // Inertia / Friction Logic
+            // If Slowmo active, use stronger friction (0.6) instead of 0.8 to reduce inertia by ~50% in feel
+            let frictionBase = FRICTION;
+            if (slowmoActive) {
+                frictionBase = 0.6;
+            }
+            const timeAdjustedFriction = Math.pow(frictionBase, gameSpeed * physicsScale);
+            player.vx *= timeAdjustedFriction;
+            
+            // Clamp speed
+            let currentMaxSpeed = MAX_SPEED * (slowmoActive ? inputScale : 1.0); 
+            player.vx = Math.max(Math.min(player.vx, currentMaxSpeed), -currentMaxSpeed);
+            
+            player.x += player.vx * gameSpeed; // Lateral move
+            
+            // Vertical Movement
+            if (isJetpacking) {
+                // Jetpack Flight Logic
+                player.vy = -10 * gameSpeed; // Constant upward thrust
+                player.y += player.vy; 
+                jetpackFrame++;
+
+                if (Math.random() < 0.5) {
+                    createParticles(player.x + player.w/2, player.y + player.h, 1, '#ffaa00');
+                }
+
+                if (score >= jetpackEndScore) {
+                    isJetpacking = false;
+                    player.vy = -5; // Small pop at end
+                    player.currentPlatform = null;
+                }
+
+            } else {
+                // Normal Gravity Logic
+                player.y += player.vy * gameSpeed * physicsScale; 
+
+                // Dynamic Gravity
+                let currentGravity = BASE_GRAVITY;
+                if (score > 5000) {
+                    currentGravity = BASE_GRAVITY * 0.6; 
+                }
+                player.vy += currentGravity * gameSpeed * physicsScale;
+            }
+
+
+            // Wall Collisions
+            if (player.x < 0) {
+                player.x = 0;
+                player.vx *= -0.5; 
+            } else if (player.x + player.w > width) {
+                player.x = width - player.w;
+                player.vx *= -0.5;
+            }
+
+            // Platform Collisions
+            player.grounded = false; // Reset for this frame's check
+            
+            // Only collide if falling and NOT jetpacking
+            if (player.vy > 0 && !isJetpacking) {
+                for (let p of platforms) {
+                    const isOverlappingX = player.x + player.w > p.x && player.x < p.x + p.w;
+                    // Use physicsScale in collision prediction to avoid tunneling
+                    const isOverlappingY = player.y + player.h >= p.y && player.y + player.h <= p.y + p.h + (player.vy * gameSpeed * physicsScale) + 5;
+
+                    if (isOverlappingX && isOverlappingY) {
+                        let hitTrampoline = false;
+                        if (p.hasTrampoline) {
+                            if (player.x + player.w > p.tX && player.x < p.tX + p.tW) {
+                                hitTrampoline = true;
+                            }
+                        }
+
+                        player.y = p.y - player.h;
+                        
+                        if (hitTrampoline) {
+                            handleBounce();
+                            player.currentPlatform = null;
+                        } else {
+                            player.vy = 0;
+                            player.grounded = true;
+                            player.currentPlatform = p; // Latch onto platform
+                            if (player.combo > 0) {
+                                createTextParticle(player.x, player.y, "Combo Lost", "#ccc");
+                                player.combo = 0;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // If not grounded, clear platform reference (e.g. walked off edge)
+            if (!player.grounded) {
+                player.currentPlatform = null;
+            }
+
+            // Manual Jump (Basic - Instant)
+            if ((keys.Space || keys.ArrowUp) && player.grounded && !isJetpacking && !isChargingJump) {
+                player.vy = JUMP_FORCE;
+                player.grounded = false;
+                player.currentPlatform = null;
+            }
+
+            // --- Superjump Logic (On 'V' key) ---
+            let isHoldingV = keys.v || keys.V;
+            
+            if (isHoldingV && player.grounded && !isJetpacking) {
+                if (!isChargingJump) {
+                    isChargingJump = true;
+                    jumpChargeStart = performance.now();
+                }
+                // Charging - player stays grounded
+            } else if (!isHoldingV && isChargingJump) {
+                // Released V Key - Execute Jump
+                let pressDuration = (performance.now() - jumpChargeStart) / 1000; // seconds
+                
+                let jumpMultiplier = 1.0;
+                
+                if (pressDuration >= 0.5) {
+                    // Calculate Boost
+                    let progress = Math.min((pressDuration - 0.5) / 1.5, 1.0);
+                    jumpMultiplier = 1.3 + (0.7 * progress);
+                    
+                    createTextParticle(player.x, player.y - 20, "Super Jump!", "#4ade80");
+                    createParticles(player.x + player.w/2, player.y + player.h, 10, '#4ade80');
+                    
+                    player.vy = JUMP_FORCE * jumpMultiplier;
+                    player.grounded = false;
+                    player.currentPlatform = null;
+                } else {
+                     player.vy = JUMP_FORCE;
+                     player.grounded = false;
+                     player.currentPlatform = null;
+                }
+                
+                isChargingJump = false;
+            } else if (!player.grounded) {
+                // If fell off edge while charging
+                isChargingJump = false;
+            }
+
+            // Camera Logic
+            const threshold = height * 0.4;
+            if (player.y < threshold) {
+                const diff = threshold - player.y;
+                player.y = threshold;
+                
+                platforms.forEach(p => p.y += diff);
+                particles.forEach(p => p.y += diff);
+                wallNodes.forEach(w => w.y += diff); 
+                bgEntities.forEach(b => b.y += diff);
+                
+                score += diff / 10;
+                cameraY += diff;
+            }
+
+            // Clean up
+            platforms = platforms.filter(p => p.y < height + 50); 
+            wallNodes = wallNodes.filter(w => w.y < height + 100);
+            bgEntities = bgEntities.filter(b => b.y < height + 200);
+            
+            let highestP = platforms[0];
+            for(let p of platforms) {
+                if (p.y < highestP.y) highestP = p;
+            }
+
+            if (highestP && highestP.y > 100) {
+                let gapScale = 0;
+                if (score > 1000) {
+                    gapScale = Math.min((score - 1000) / 7000, 1.0) * 80;
+                }
+                
+                const gap = 100 + gapScale + Math.random() * 60;
+                generatePlatform(highestP.y - gap);
+            }
+
+            // Generate Wall Nodes
+            let highestWall = wallNodes[0];
+            if (highestWall) {
+                for(let w of wallNodes) {
+                    if (w.y < highestWall.y) highestWall = w;
+                }
+                if (highestWall.y > -50) {
+                     generateWallNode(highestWall.y - 40, score);
+                }
+            } else if (score < 1500) {
+                generateWallNode(-50, score);
+            }
+
+            // Death / Jetpack Activation
+            if (player.y > height) {
+                if (jetpacks > 0 && !isJetpacking) {
+                    activateJetpack();
+                } else if (!isJetpacking) {
+                    gameOver();
+                }
+            }
+
+            // Update UI
+            scoreDisplay.innerText = `Height: ${Math.floor(score)}m`;
+            comboDisplay.innerText = `Combo: x${player.combo}`;
+            
+            updateParticles();
+        }
+
+        function handleBounce() {
+            let effectiveCombo = Math.min(player.combo, MAX_COMBO);
+            let force = TRAMPOLINE_BASE_FORCE + (effectiveCombo * COMBO_BONUS);
+            
+            player.vy = force;
+            player.combo++;
+            
+            createParticles(player.x + player.w/2, player.y + player.h, 10, '#ffaa00');
+            
+            let msg = player.combo > 1 ? `${player.combo}x Combo!` : "Bounce!";
+            let color = player.combo > 2 ? "#ff4444" : "#fff";
+            createTextParticle(player.x, player.y - 20, msg, color);
+            
+            isChargingJump = false; // Cancel manual charge on bounce
+        }
+
+        // --- Rendering ---
+        
+        function lerpColor(c1, c2, t) {
+            return {
+                r: Math.round(c1.r + (c2.r - c1.r) * t),
+                g: Math.round(c1.g + (c2.g - c1.g) * t),
+                b: Math.round(c1.b + (c2.b - c1.b) * t)
+            };
+        }
+        
+        function rgbToHex(rgb) {
+            return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
+        }
+
+        // Helper to get color at a specific absolute altitude (meters)
+        function getSkyColorAtAltitude(m) {
+            const colors = {
+                cave:      {r: 30, g: 20, b: 10},   // Deep Dark Brown (Constant)
+                skyStart:  {r: 96, g: 165, b: 250}, // Light Blue
+                skyEnd:    {r: 191, g: 219, b: 254},// Pale Blue
+                spaceStart:{r: 30, g: 27, b: 75},   // Deep Blue
+                spaceEnd:  {r: 0, g: 0, b: 0}       // Black
+            };
+
+            // ALIGNMENT FIX: Changed transition from 1500 to 1550 to match wall height
+            if (m < 1550) {
+                return colors.cave;
+            } else if (m < 4000) {
+                // Sky Phase (1550 -> 4000)
+                const t = (m - 1550) / 2450;
+                // Light Blue -> Dark Blue
+                const c1 = {r: 135, g: 206, b: 235}; // Sky Blue
+                const c2 = {r: 25, g: 25, b: 112};   // Midnight Blue
+                return lerpColor(c1, c2, t);
+            } else if (m < 8000) {
+                // Space Phase (4000 -> 8000)
+                const t = (m - 4000) / 4000;
+                const c1 = {r: 25, g: 25, b: 112};   // Midnight Blue
+                const c2 = {r: 0, g: 0, b: 0};       // Black
+                return lerpColor(c1, c2, t);
+            } else {
+                return {r: 0, g: 0, b: 0};
+            }
+        }
+
+        function drawBackground() {
+            const grad = ctx.createLinearGradient(0, 0, 0, height);
+
+            // Calculate Altitude at Top and Bottom of screen
+            // score = approx altitude at bottom
+            // 10 pixels = 1 meter
+            const altBottom = score;
+            const altTop = score + (height / 10);
+
+            // Function to map altitude to gradient offset
+            const getOffset = (m) => {
+                return 1 - ((m - altBottom) / (altTop - altBottom));
+            };
+
+            // 1. Add Top and Bottom Colors
+            grad.addColorStop(0, rgbToHex(getSkyColorAtAltitude(altTop)));
+            grad.addColorStop(1, rgbToHex(getSkyColorAtAltitude(altBottom)));
+
+            // 2. Insert Hard Transition at 1550m if visible (Aligned with Walls)
+            if (altBottom < 1550 && altTop > 1550) {
+                const offset = getOffset(1550);
+                // Hard stop: Sky color just above, Cave color just below
+                grad.addColorStop(offset - 0.001, rgbToHex(getSkyColorAtAltitude(1551)));
+                grad.addColorStop(offset, rgbToHex(getSkyColorAtAltitude(1549)));
+            }
+
+            // 3. Insert Soft Transition at 4000m if visible
+            if (altBottom < 4000 && altTop > 4000) {
+                const offset = getOffset(4000);
+                grad.addColorStop(offset, rgbToHex(getSkyColorAtAltitude(4000)));
+            }
+
+            // 4. Insert Soft Transition at 8000m if visible
+            if (altBottom < 8000 && altTop > 8000) {
+                const offset = getOffset(8000);
+                grad.addColorStop(offset, rgbToHex(getSkyColorAtAltitude(8000)));
+            }
+            
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, width, height);
+            
+            // Slowmo Tint
+            if (slowmoActive) {
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.fillRect(0, 0, width, height);
+            }
+        }
+
+        function drawWallNodes() {
+            // Draw Surface Decor First (Behind walls, technically, or on top?)
+            // Background decor should be behind walls if walls are foreground.
+            // But trees should look like they are 'outside' at the top.
+            // Let's draw trees here
+            
+            bgEntities.forEach(b => {
+                if (b.type === 'ground_line') {
+                    ctx.fillStyle = b.color;
+                    ctx.fillRect(0, b.y, width, 20); // Grass thick line
+                } else if (b.type === 'tree') {
+                    // Trunk
+                    ctx.fillStyle = '#5d4037';
+                    ctx.fillRect(b.x, b.y - b.h, b.w, b.h);
+                    // Foliage (Simple Circle)
+                    ctx.fillStyle = '#2e7d32';
+                    ctx.beginPath();
+                    ctx.arc(b.x + b.w/2, b.y - b.h, b.w * 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+
+            if (wallNodes.length < 2) return;
+
+            // Draw Decorations (Roots and Stones first)
+            // Roots
+            ctx.strokeStyle = '#4e3b2a'; // Root color
+            ctx.lineWidth = 2;
+            for (let w of wallNodes) {
+                if (w.decor) {
+                    for (let d of w.decor) {
+                        if (d.type === 'root') {
+                            const originX = d.side === 'left' ? w.left : width - w.right;
+                            ctx.beginPath();
+                            ctx.moveTo(originX, w.y);
+                            // Simple Bezier curve downward
+                            ctx.quadraticCurveTo(originX + d.curve, w.y + d.length/2, originX, w.y + d.length);
+                            ctx.stroke();
+                        }
+                    }
+                }
+            }
+
+            // Main Wall Fill
+            ctx.fillStyle = '#2b2118'; // Dark Rock/Earth Color
+            ctx.strokeStyle = '#3e3226';
+            ctx.lineWidth = 2;
+
+            // Left Wall
+            ctx.beginPath();
+            ctx.moveTo(0, wallNodes[0].y);
+            for (let i = 0; i < wallNodes.length; i++) {
+                ctx.lineTo(wallNodes[i].left, wallNodes[i].y);
+            }
+            ctx.lineTo(0, wallNodes[wallNodes.length-1].y);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Right Wall
+            ctx.beginPath();
+            ctx.moveTo(width, wallNodes[0].y);
+            for (let i = 0; i < wallNodes.length; i++) {
+                ctx.lineTo(width - wallNodes[i].right, wallNodes[i].y);
+            }
+            ctx.lineTo(width, wallNodes[wallNodes.length-1].y);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Overlay Decorations (Stones & Moss)
+            for (let w of wallNodes) {
+                if (w.decor) {
+                    for (let d of w.decor) {
+                        if (d.type === 'stone') {
+                            // Draw embedded stone
+                            const centerX = d.side === 'left' ? w.left - d.xOff : width - w.right + d.xOff;
+                            ctx.fillStyle = '#444'; // Grey stone
+                            ctx.beginPath();
+                            ctx.arc(centerX, w.y, d.size, 0, Math.PI * 2);
+                            ctx.fill();
+                        } else if (d.type === 'moss') {
+                            // Draw moss patch on edge
+                            const centerX = d.side === 'left' ? w.left : width - w.right;
+                            ctx.fillStyle = '#4d7c2a'; // Moss Green
+                            ctx.beginPath();
+                            ctx.arc(centerX, w.y, d.size, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    }
+                }
+            }
+        }
+
+        function draw() {
+            drawBackground();
+            drawWallNodes();
+
+            platforms.forEach(p => {
+                // Determine visuals based on altitude of this specific platform
+                const pAltitude = score + (height - p.y) / 10;
+                
+                // Determine biome per platform
+                const isCave = pAltitude < 1550;
+
+                if (p.type === 'ground') {
+                    ctx.fillStyle = isCave ? '#2b2118' : '#555';
+                    ctx.fillRect(p.x, p.y, p.w, p.h);
+                } else {
+                    if (isCave) {
+                        // --- CAVE PLATFORMS (Rock/Moss/Magma) ---
+                        // Platform Body
+                        ctx.fillStyle = '#3d342b'; 
+                        ctx.fillRect(p.x, p.y, p.w, p.h);
+                        
+                        // Moss/Grass on top for cave
+                        ctx.fillStyle = '#4d7c2a';
+                        ctx.fillRect(p.x, p.y, p.w, 4);
+
+                        // Trampoline (Magma)
+                        if (p.hasTrampoline) {
+                            ctx.shadowBlur = 10;
+                            ctx.shadowColor = '#ff4500';
+                            
+                            ctx.fillStyle = '#8b0000'; // Dark Red
+                            ctx.fillRect(p.tX, p.y + 2, p.tW, p.h - 4);
+                            
+                            ctx.fillStyle = '#ff4500'; // Orange Red
+                            ctx.fillRect(p.tX + 2, p.y + 4, p.tW - 4, p.h - 8);
+                            
+                            ctx.fillStyle = '#ffd700'; // Gold
+                            ctx.fillRect(p.tX + 5, p.y + 6, p.tW - 10, p.h - 12);
+
+                            ctx.shadowBlur = 0; // Reset
+                        }
+                    } else {
+                        // --- SKY PLATFORMS (Clouds) ---
+                        // Draw fluff (Undulating circles)
+                        ctx.fillStyle = '#ffffff';
+                        const numBumps = Math.floor(p.w / 15);
+                        const radius = p.h / 1.2;
+                        
+                        // Draw bumps along the width
+                        for (let i = 0; i <= numBumps; i++) {
+                            const bx = p.x + (i * (p.w / numBumps));
+                            const by = p.y + p.h / 2;
+                            ctx.beginPath();
+                            ctx.arc(bx, by, radius, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                        
+                        // Fill center rect to connect bumps
+                        ctx.fillRect(p.x, p.y, p.w, p.h);
+
+                        // Trampoline (Deep Blue Pad)
+                        if (p.hasTrampoline) {
+                            // Pad Base
+                            ctx.fillStyle = '#1e3a8a'; // Deep Dark Blue
+                            // Draw slightly inset to look embedded in cloud
+                            ctx.fillRect(p.tX, p.y + 2, p.tW, p.h - 4);
+                            
+                            // Highlight/Surface
+                            ctx.fillStyle = '#3b82f6'; // Bright Blue
+                            ctx.fillRect(p.tX + 4, p.y + 4, p.tW - 8, p.h - 8);
+                        }
+                    }
+                }
+            });
+
+            particles.forEach(p => {
+                if (p.type === 'text') {
+                    ctx.fillStyle = p.color;
+                    ctx.font = "bold 20px sans-serif";
+                    ctx.fillText(p.text, p.x, p.y);
+                } else {
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(p.x, p.y, p.size, p.size);
+                }
+            });
+
+            // Draw Player
+            if (player.combo > 1 || slowmoActive) {
+                ctx.shadowBlur = slowmoActive ? 20 : 15;
+                ctx.shadowColor = slowmoActive ? '#3b82f6' : '#fff';
+            }
+            
+            // Charge Effect Color
+            if (isChargingJump) {
+                let duration = (performance.now() - jumpChargeStart) / 1000;
+                if (Math.floor(Date.now() / 50) % 2 === 0) { // Shake color
+                    ctx.fillStyle = '#ffffff'; 
+                } else {
+                    ctx.fillStyle = player.color;
+                }
+                
+                // Draw Charge Bar if > 0.5s
+                if (duration > 0.5) {
+                    let progress = Math.min((duration - 0.5) / 1.5, 1.0);
+                    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                    ctx.fillRect(player.x, player.y - 10, player.w, 4);
+                    ctx.fillStyle = '#4ade80';
+                    ctx.fillRect(player.x, player.y - 10, player.w * progress, 4);
+                }
+                
+                // Shake offset
+                ctx.save();
+                ctx.translate((Math.random()-0.5)*2, (Math.random()-0.5)*2);
+            } else {
+                ctx.fillStyle = player.color;
+            }
+
+            if (!isChargingJump) {
+                ctx.fillRect(player.x, player.y, player.w, player.h);
+            } else {
+                ctx.fillRect(player.x, player.y, player.w, player.h);
+                ctx.restore();
+            }
+            
+            // Eyes
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'black';
+            if (player.vy > 0 && !isJetpacking) {
+                ctx.fillRect(player.x + 5, player.y + 10, 5, 8);
+                ctx.fillRect(player.x + 20, player.y + 10, 5, 8);
+            } else {
+                ctx.fillRect(player.x + 5, player.y + 5, 5, 5);
+                ctx.fillRect(player.x + 20, player.y + 5, 5, 5);
+            }
+
+            // Draw Jetpack Visuals
+            if (isJetpacking || jetpacks > 0) {
+                // Strap
+                ctx.fillStyle = '#333';
+                ctx.fillRect(player.x + 5, player.y + 10, 20, 4);
+
+                // Backpack
+                ctx.fillStyle = '#ef4444'; // Red pack
+                ctx.fillRect(player.x - 5, player.y + 5, 5, 20);
+
+                if (isJetpacking) {
+                    // Flames
+                    const flameH = 10 + Math.random() * 15;
+                    ctx.fillStyle = '#fbbf24'; // Yellow center
+                    ctx.beginPath();
+                    ctx.moveTo(player.x - 5, player.y + 25);
+                    ctx.lineTo(player.x - 2, player.y + 25 + flameH);
+                    ctx.lineTo(player.x + 1, player.y + 25);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#ef4444'; // Orange outer
+                    ctx.beginPath();
+                    ctx.moveTo(player.x - 6, player.y + 25);
+                    ctx.lineTo(player.x - 3, player.y + 25 + flameH + 5);
+                    ctx.lineTo(player.x + 0, player.y + 25);
+                    ctx.fill();
+                }
+            }
+
+            // Draw Indicators
+            const cx = player.x + player.w / 2;
+            const cy = player.y + player.h / 2;
+            const radius = player.w * 1.0; 
+            const barWidth = 4;
+
+            // Slowmo Indicator (Blue ')' on right)
+            if (slowmoActive) {
+                const pct = slowmoTimer / SLOWMO_DURATION;
+                const maxAngle = Math.PI / 3; 
+                const currentAngle = maxAngle * pct;
+                
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius + 10, -currentAngle/2, currentAngle/2);
+                ctx.lineCap = 'round';
+                
+                // Highlight (White Outline)
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+                ctx.lineWidth = barWidth + 3;
+                ctx.stroke();
+
+                // Main Bar
+                ctx.strokeStyle = '#3b82f6';
+                ctx.lineWidth = barWidth;
+                ctx.stroke();
+            }
+
+            // Jetpack Indicator (Red '(' on left)
+            if (isJetpacking) {
+                const remaining = Math.max(0, jetpackEndScore - score);
+                const pct = remaining / 400;
+                
+                const maxAngle = Math.PI / 3;
+                const currentAngle = maxAngle * pct;
+                
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius + 10, Math.PI - currentAngle/2, Math.PI + currentAngle/2);
+                ctx.lineCap = 'round';
+                
+                // Highlight (White Outline)
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+                ctx.lineWidth = barWidth + 3;
+                ctx.stroke();
+
+                // Main Bar
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = barWidth;
+                ctx.stroke();
+            }
+        }
+
+        // --- Particle System ---
+        
+        function createParticles(x, y, count, color) {
+            for(let i=0; i<count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 5,
+                    vy: (Math.random() - 0.5) * 5,
+                    life: 1.0,
+                    color: color,
+                    size: Math.random() * 4 + 2,
+                    type: 'rect'
+                });
+            }
+        }
+
+        function createTextParticle(x, y, text, color) {
+            particles.push({
+                x: x,
+                y: y,
+                vx: 0,
+                vy: -1,
+                life: 2.0, // Longer life for milestones
+                text: text,
+                color: color,
+                type: 'text'
+            });
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                // Slowmo affects particles too for visual consistency
+                let pScale = slowmoActive ? 0.25 : 1.0;
+                
+                p.x += p.vx * gameSpeed * pScale;
+                p.y += p.vy * gameSpeed * pScale;
+                p.life -= 0.02 * gameSpeed * pScale;
+
+                if (p.type === 'rect') p.size *= 0.95;
+
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        // --- Loop ---
+
+        function loop(timestamp) {
+            if (!gameRunning) return;
+            
+            const deltaTime = timestamp - lastTime;
+            lastTime = timestamp;
+            
+            update(deltaTime);
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        // --- Input Handling ---
+
+        window.addEventListener('keydown', e => {
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
+            if (keys.hasOwnProperty(e.code)) keys[e.code] = true;
+            if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space',' '].includes(e.code)) e.preventDefault();
+        });
+
+        window.addEventListener('keyup', e => {
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
+            if (keys.hasOwnProperty(e.code)) keys[e.code] = false;
+        });
+
+        // Touch Listeners Removed
+
+    </script>
+</body>
+</html>
