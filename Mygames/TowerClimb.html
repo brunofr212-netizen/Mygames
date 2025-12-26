@@ -17,6 +17,8 @@
             justify-content: center;
             align-items: center;
             height: 100vh;
+            user-select: none;
+            -webkit-user-select: none;
         }
 
         #game-container {
@@ -49,7 +51,105 @@
             justify-content: space-between;
             padding: 20px;
             box-sizing: border-box;
+            z-index: 5;
         }
+
+        /* Mobile Controls Overlay */
+        #mobile-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            width: 100%;
+            height: 180px;
+            pointer-events: none;
+            display: none; /* Hidden by default */
+            z-index: 20;
+            padding: 0 20px;
+            box-sizing: border-box;
+        }
+
+        #mobile-controls.visible {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Joystick Zone */
+        .control-zone-left {
+            width: 150px;
+            height: 150px;
+            pointer-events: auto;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #joystick-base {
+            width: 120px;
+            height: 40px; /* Horizontal track */
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            position: relative;
+        }
+
+        #joystick-knob {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+        }
+
+        /* Button Zone */
+        .control-zone-right {
+            pointer-events: auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 15px;
+            align-items: center;
+            justify-items: center;
+        }
+
+        .mob-btn {
+            width: 70px;
+            height: 70px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 12px;
+            font-weight: bold;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            backdrop-filter: blur(2px);
+            transition: background 0.1s;
+            text-transform: uppercase;
+            user-select: none;
+        }
+
+        .mob-btn:active, .mob-btn.active {
+            background: rgba(255, 255, 255, 0.4);
+            transform: scale(0.95);
+        }
+
+        .mob-btn span { font-size: 20px; margin-bottom: 2px; }
+
+        /* Specific Button Positioning */
+        #btn-jump { grid-column: 2; grid-row: 2; width: 80px; height: 80px; background: rgba(74, 222, 128, 0.2); border-color: rgba(74, 222, 128, 0.4); }
+        #btn-power { grid-column: 1; grid-row: 2; background: rgba(251, 191, 36, 0.2); border-color: rgba(251, 191, 36, 0.4); }
+        #btn-slow { grid-column: 2; grid-row: 1; background: rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.4); width: 60px; height: 60px;}
+
 
         .hud-top {
             display: flex;
@@ -129,7 +229,7 @@
             align-items: center;
             text-align: center;
             pointer-events: auto;
-            z-index: 10;
+            z-index: 30;
         }
 
         .hidden {
@@ -183,6 +283,22 @@
             text-transform: uppercase;
         }
 
+        /* Checkbox for mobile debug */
+        .mobile-toggle {
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 16px;
+            color: #aaa;
+            cursor: pointer;
+        }
+        .mobile-toggle input {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
         /* Touch controls overlay for mobile hint */
         .controls-hint {
             position: absolute;
@@ -222,8 +338,24 @@
                     </div>
                 </div>
             </div>
-            <div class="controls-hint">
+            
+            <!-- Removed text controls hint if mobile controls are active, managed by JS -->
+            <div id="desktop-hint" class="controls-hint">
                 Move: Arrows/A-D | Jump: Space | Superjump: Hold V | Slowmo: S
+            </div>
+
+            <!-- Mobile Controls -->
+            <div id="mobile-controls">
+                <div class="control-zone-left" id="joystick-touch-zone">
+                    <div id="joystick-base">
+                        <div id="joystick-knob"></div>
+                    </div>
+                </div>
+                <div class="control-zone-right">
+                    <div class="mob-btn" id="btn-power"><span>⚡</span>Power</div>
+                    <div class="mob-btn" id="btn-slow"><span>⏱️</span>Slow</div>
+                    <div class="mob-btn" id="btn-jump"><span>⬆️</span>Jump</div>
+                </div>
             </div>
         </div>
 
@@ -243,6 +375,11 @@
                     <button class="speed-btn active" onclick="selectSpeed(6)">6x</button>
                 </div>
             </div>
+
+            <label class="mobile-toggle">
+                <input type="checkbox" id="mobile-mode-check" onchange="toggleMobileMode(this.checked)">
+                Show Mobile Controls
+            </label>
 
             <button class="btn" onclick="startGame()">START CLIMBING</button>
         </div>
@@ -268,7 +405,14 @@
         const startScreen = document.getElementById('start-screen');
         const finalScoreDisplay = document.getElementById('final-score');
         const speedBtns = document.querySelectorAll('.speed-btn');
+        const mobileControls = document.getElementById('mobile-controls');
+        const desktopHint = document.getElementById('desktop-hint');
+        const mobileCheck = document.getElementById('mobile-mode-check');
 
+        // Joystick Elements
+        const joystickZone = document.getElementById('joystick-touch-zone');
+        const joystickKnob = document.getElementById('joystick-knob');
+        
         // Game State
         let gameRunning = false;
         let score = 0;
@@ -276,6 +420,26 @@
         let width, height;
         let gameSpeed = 1.0; 
         let lastTime = 0;
+
+        // Input State
+        let horizontalInput = 0.0; // -1.0 to 1.0 (from both keys and joystick)
+        const keys = {
+            ArrowLeft: false,
+            ArrowRight: false,
+            a: false,
+            d: false,
+            Space: false,
+            s: false,
+            ArrowUp: false,
+            v: false,
+            V: false
+        };
+        const mobileState = {
+            joystickX: 0,
+            jumpPressed: false,
+            powerPressed: false,
+            slowmoPressed: false
+        };
 
         // Feature State
         let jetpacks = 0;
@@ -288,7 +452,7 @@
         let nextSlowmoMilestone = 1500;
         let slowmoActive = false;
         let slowmoTimer = 0;
-        const SLOWMO_DURATION = 10; // seconds
+        const SLOWMO_DURATION = 10; 
 
         // Superjump State
         let jumpChargeStart = 0;
@@ -304,19 +468,6 @@
         const COMBO_BONUS = -3;
         const MAX_COMBO = 5; 
         
-        // Input State
-        const keys = {
-            ArrowLeft: false,
-            ArrowRight: false,
-            a: false,
-            d: false,
-            Space: false,
-            s: false,
-            ArrowUp: false,
-            v: false,
-            V: false
-        };
-
         // Entities
         let player = {
             x: 0,
@@ -328,16 +479,38 @@
             color: '#4ade80',
             combo: 0,
             grounded: false,
-            currentPlatform: null // Track platform for movement inheritance
+            currentPlatform: null 
         };
 
         let platforms = [];
         let particles = [];
         let wallNodes = []; 
-        let bgEntities = []; // For Surface/Trees
+        let bgEntities = []; 
         let surfaceGenerated = false;
 
-        // --- Core Functions ---
+        // --- Init & Mobile Detection ---
+
+        function init() {
+            resize();
+            window.addEventListener('resize', resize);
+            
+            // Detect Mobile
+            const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+            if (isTouch) {
+                mobileCheck.checked = true;
+                toggleMobileMode(true);
+            }
+        }
+
+        function toggleMobileMode(enabled) {
+            if (enabled) {
+                mobileControls.classList.add('visible');
+                desktopHint.style.display = 'none';
+            } else {
+                mobileControls.classList.remove('visible');
+                desktopHint.style.display = 'block';
+            }
+        }
 
         function resize() {
             const container = document.getElementById('game-container');
@@ -346,15 +519,11 @@
             canvas.width = width;
             canvas.height = height;
             
-            // Re-center player if game hasn't started
             if (!gameRunning) {
                 player.x = width / 2 - player.w / 2;
                 player.y = height - 150;
             }
         }
-
-        window.addEventListener('resize', resize);
-        resize();
 
         function selectSpeed(level) {
             speedBtns.forEach(btn => btn.classList.remove('active'));
@@ -375,14 +544,12 @@
                 moveDir: 1
             });
 
-            // Pre-fill screen with platforms
             let currentY = height - 150;
             while (currentY > -height) { 
                 generatePlatform(currentY);
                 currentY -= 120;
             }
 
-            // Init Walls
             let wallY = height + 100;
             while (wallY > -height) {
                 generateWallNode(wallY, 0); 
@@ -391,30 +558,24 @@
         }
 
         function generateWallNode(y, currentScore) {
-            // FIX: Convert pixel offset to score units (meters)
-            // Score = pixels / 10 approximately in this logic
             let absoluteHeight = currentScore + (height - y) / 10; 
 
             if (absoluteHeight < 1550) { 
-                // Homogenous Wall Generation
                 const baseW = 30;
                 const variance = 20;
 
                 const leftW = Math.max(0, baseW + (Math.random() * variance - variance/2));
                 const rightW = Math.max(0, baseW + (Math.random() * variance - variance/2));
 
-                // Generate Decoration Props
                 let decor = [];
-                // Stone (Embedded rock)
                 if (Math.random() < 0.4) {
                     decor.push({
                         type: 'stone',
-                        xOff: (Math.random() * 10) + 5, // offset from edge inside wall
+                        xOff: (Math.random() * 10) + 5,
                         size: 5 + Math.random() * 8,
                         side: Math.random() < 0.5 ? 'left' : 'right'
                     });
                 }
-                // Root (Hanging down)
                 if (Math.random() < 0.25) {
                     decor.push({
                         type: 'root',
@@ -423,7 +584,6 @@
                         side: Math.random() < 0.5 ? 'left' : 'right'
                     });
                 }
-                // Moss (Green patch on edge)
                 if (Math.random() < 0.3) {
                     decor.push({
                         type: 'moss',
@@ -437,30 +597,26 @@
                     left: leftW,
                     right: rightW,
                     decor: decor,
-                    color: '#2b2118' // Darker, richer brown base
+                    color: '#2b2118'
                 });
             } else if (!surfaceGenerated) {
-                // Generate Surface Layer (Grass + Trees) exactly once at cutoff
                 generateSurface(y);
                 surfaceGenerated = true;
             }
         }
 
         function generateSurface(y) {
-            // Add Surface Ground
             bgEntities.push({
                 type: 'ground_line',
                 y: y,
                 color: '#4d7c2a'
             });
 
-            // Add Trees
             const treeCount = 4 + Math.floor(Math.random() * 4);
             for(let i=0; i<treeCount; i++) {
                 const tx = 20 + Math.random() * (width - 40);
-                const th = 40 + Math.random() * 60; // tree height
-                const tw = 8 + Math.random() * 6; // trunk width
-                
+                const th = 40 + Math.random() * 60;
+                const tw = 8 + Math.random() * 6;
                 bgEntities.push({
                     type: 'tree',
                     x: tx,
@@ -474,7 +630,6 @@
         function generatePlatform(targetY) {
             const progress = Math.min(score / 8000, 1.0);
             
-            // 1. Platform Width Scaling
             const minAllowedW = 100 - (progress * 50); 
             const maxAllowedW = 200 - (progress * 110);
             const pWidth = Math.floor(Math.random() * (maxAllowedW - minAllowedW + 1)) + minAllowedW;
@@ -489,7 +644,6 @@
 
             const pX = xMin + Math.random() * (xMax - xMin);
             
-            // 2. Trampoline Logic
             const hasTrampoline = Math.random() < 0.8;
             let tWidth = 0;
             let tX = 0;
@@ -501,7 +655,6 @@
                 tX = pX + (pWidth - tWidth) / 2;
             }
 
-            // 3. Moving Platforms
             let isMoving = false;
             let moveSpeed = 0;
             if (score > 3000) {
@@ -551,7 +704,6 @@
             cameraY = 0;
             player.currentPlatform = null;
             
-            // Reset Features
             jetpacks = 0;
             nextJetpackMilestone = 2000;
             isJetpacking = false;
@@ -581,7 +733,6 @@
         // --- Feature Logic ---
 
         function checkMilestones() {
-            // Jetpack: Every 2000m
             if (score >= nextJetpackMilestone) {
                 jetpacks++;
                 nextJetpackMilestone += 2000;
@@ -589,7 +740,6 @@
                 updateUI();
             }
 
-            // Slowmo: Every 1500m
             if (score >= nextSlowmoMilestone) {
                 slowmoCharges++;
                 nextSlowmoMilestone += 1500;
@@ -611,12 +761,10 @@
             isJetpacking = true;
             jetpackEndScore = score + 400;
             jetpacks--;
-            // Launch upwards
             player.vy = -12; 
-            player.y = Math.min(player.y, height - 50); // Ensure on screen
+            player.y = Math.min(player.y, height - 50); 
             updateUI();
             
-            // Cancel jump charge if flying
             isChargingJump = false;
             player.currentPlatform = null;
         }
@@ -635,26 +783,31 @@
         // --- Physics & Logic ---
 
         function update(deltaTime) {
-            // deltaTime is in ms
-            // Convert to seconds for timer
             const dtSeconds = deltaTime / 1000;
 
-            // 1. Calculate Modifiers based on Slowmo
+            // Gather Input
+            horizontalInput = 0;
+            if (keys.ArrowLeft || keys.a) horizontalInput -= 1;
+            if (keys.ArrowRight || keys.d) horizontalInput += 1;
+            // Add Mobile Joystick
+            horizontalInput += mobileState.joystickX;
+            // Clamp
+            horizontalInput = Math.max(-1, Math.min(1, horizontalInput));
+
+            // Slowmo Physics
             let physicsScale = 1.0;
             let inputScale = 1.0;
 
             if (slowmoActive) {
-                physicsScale = 0.25; // 25% gravity/speed
-                inputScale = 0.60;   // 60% input speed (Advantage)
+                physicsScale = 0.25; 
+                inputScale = 0.60;   
                 
-                // Tick Timer using Real Time
                 slowmoTimer -= dtSeconds;
                 if (slowmoTimer <= 0) {
                     slowmoActive = false;
                     slowmoTimer = 0;
                 }
                 
-                // Update Bar
                 let pct = (slowmoTimer / SLOWMO_DURATION) * 100;
                 slowmoBarFill.style.width = `${pct}%`;
             } else {
@@ -663,7 +816,6 @@
 
             checkMilestones();
 
-            // Apply Moving Platforms Logic (and store reference updates)
             platforms.forEach(p => {
                 if (p.moving) {
                     p.x += p.moveSpeed * p.moveDir * gameSpeed * physicsScale;
@@ -681,29 +833,21 @@
                 }
             });
 
-            // Platform Inheritance: Move player if grounded on moving platform
-            // Use current frame's grounded status from previous frame's check
             if (player.grounded && player.currentPlatform && player.currentPlatform.moving) {
                  const pSpeed = player.currentPlatform.moveSpeed * player.currentPlatform.moveDir * gameSpeed * physicsScale;
                  player.x += pSpeed;
             }
 
-            // Player Movement (Lateral)
-            if (keys.ArrowLeft || keys.a) {
-                player.vx -= MOVE_SPEED * gameSpeed * inputScale;
-            }
-            if (keys.ArrowRight || keys.d) {
-                player.vx += MOVE_SPEED * gameSpeed * inputScale;
+            // Apply Move Input
+            if (horizontalInput !== 0) {
+                player.vx += MOVE_SPEED * gameSpeed * inputScale * horizontalInput;
             }
 
-            // Keyboard trigger for slowmo
             if (keys.s) {
                 activateSlowmo();
-                keys.s = false; // Toggle/One-shot
+                keys.s = false; 
             }
 
-            // Inertia / Friction Logic
-            // If Slowmo active, use stronger friction (0.6) instead of 0.8 to reduce inertia by ~50% in feel
             let frictionBase = FRICTION;
             if (slowmoActive) {
                 frictionBase = 0.6;
@@ -711,16 +855,13 @@
             const timeAdjustedFriction = Math.pow(frictionBase, gameSpeed * physicsScale);
             player.vx *= timeAdjustedFriction;
             
-            // Clamp speed
             let currentMaxSpeed = MAX_SPEED * (slowmoActive ? inputScale : 1.0); 
             player.vx = Math.max(Math.min(player.vx, currentMaxSpeed), -currentMaxSpeed);
             
-            player.x += player.vx * gameSpeed; // Lateral move
+            player.x += player.vx * gameSpeed; 
             
-            // Vertical Movement
             if (isJetpacking) {
-                // Jetpack Flight Logic
-                player.vy = -10 * gameSpeed; // Constant upward thrust
+                player.vy = -10 * gameSpeed; 
                 player.y += player.vy; 
                 jetpackFrame++;
 
@@ -730,15 +871,13 @@
 
                 if (score >= jetpackEndScore) {
                     isJetpacking = false;
-                    player.vy = -5; // Small pop at end
+                    player.vy = -5; 
                     player.currentPlatform = null;
                 }
 
             } else {
-                // Normal Gravity Logic
                 player.y += player.vy * gameSpeed * physicsScale; 
 
-                // Dynamic Gravity
                 let currentGravity = BASE_GRAVITY;
                 if (score > 5000) {
                     currentGravity = BASE_GRAVITY * 0.6; 
@@ -746,8 +885,6 @@
                 player.vy += currentGravity * gameSpeed * physicsScale;
             }
 
-
-            // Wall Collisions
             if (player.x < 0) {
                 player.x = 0;
                 player.vx *= -0.5; 
@@ -756,14 +893,11 @@
                 player.vx *= -0.5;
             }
 
-            // Platform Collisions
-            player.grounded = false; // Reset for this frame's check
+            player.grounded = false; 
             
-            // Only collide if falling and NOT jetpacking
             if (player.vy > 0 && !isJetpacking) {
                 for (let p of platforms) {
                     const isOverlappingX = player.x + player.w > p.x && player.x < p.x + p.w;
-                    // Use physicsScale in collision prediction to avoid tunneling
                     const isOverlappingY = player.y + player.h >= p.y && player.y + player.h <= p.y + p.h + (player.vy * gameSpeed * physicsScale) + 5;
 
                     if (isOverlappingX && isOverlappingY) {
@@ -782,7 +916,7 @@
                         } else {
                             player.vy = 0;
                             player.grounded = true;
-                            player.currentPlatform = p; // Latch onto platform
+                            player.currentPlatform = p; 
                             if (player.combo > 0) {
                                 createTextParticle(player.x, player.y, "Combo Lost", "#ccc");
                                 player.combo = 0;
@@ -792,35 +926,34 @@
                 }
             }
 
-            // If not grounded, clear platform reference (e.g. walked off edge)
             if (!player.grounded) {
                 player.currentPlatform = null;
             }
 
-            // Manual Jump (Basic - Instant)
-            if ((keys.Space || keys.ArrowUp) && player.grounded && !isJetpacking && !isChargingJump) {
+            // Normal Jump Logic (Keys or Mobile Btn)
+            const jumpInput = keys.Space || keys.ArrowUp || mobileState.jumpPressed;
+            
+            if (jumpInput && player.grounded && !isJetpacking && !isChargingJump) {
                 player.vy = JUMP_FORCE;
                 player.grounded = false;
                 player.currentPlatform = null;
+                mobileState.jumpPressed = false; // consume input
             }
 
-            // --- Superjump Logic (On 'V' key) ---
-            let isHoldingV = keys.v || keys.V;
+            // Superjump Logic (V or Mobile Power Btn)
+            const powerInput = keys.v || keys.V || mobileState.powerPressed;
             
-            if (isHoldingV && player.grounded && !isJetpacking) {
+            if (powerInput && player.grounded && !isJetpacking) {
                 if (!isChargingJump) {
                     isChargingJump = true;
                     jumpChargeStart = performance.now();
                 }
-                // Charging - player stays grounded
-            } else if (!isHoldingV && isChargingJump) {
-                // Released V Key - Execute Jump
-                let pressDuration = (performance.now() - jumpChargeStart) / 1000; // seconds
+            } else if (!powerInput && isChargingJump) {
+                let pressDuration = (performance.now() - jumpChargeStart) / 1000; 
                 
                 let jumpMultiplier = 1.0;
                 
                 if (pressDuration >= 0.5) {
-                    // Calculate Boost
                     let progress = Math.min((pressDuration - 0.5) / 1.5, 1.0);
                     jumpMultiplier = 1.3 + (0.7 * progress);
                     
@@ -838,11 +971,9 @@
                 
                 isChargingJump = false;
             } else if (!player.grounded) {
-                // If fell off edge while charging
                 isChargingJump = false;
             }
 
-            // Camera Logic
             const threshold = height * 0.4;
             if (player.y < threshold) {
                 const diff = threshold - player.y;
@@ -857,7 +988,6 @@
                 cameraY += diff;
             }
 
-            // Clean up
             platforms = platforms.filter(p => p.y < height + 50); 
             wallNodes = wallNodes.filter(w => w.y < height + 100);
             bgEntities = bgEntities.filter(b => b.y < height + 200);
@@ -877,7 +1007,6 @@
                 generatePlatform(highestP.y - gap);
             }
 
-            // Generate Wall Nodes
             let highestWall = wallNodes[0];
             if (highestWall) {
                 for(let w of wallNodes) {
@@ -890,7 +1019,6 @@
                 generateWallNode(-50, score);
             }
 
-            // Death / Jetpack Activation
             if (player.y > height) {
                 if (jetpacks > 0 && !isJetpacking) {
                     activateJetpack();
@@ -899,7 +1027,6 @@
                 }
             }
 
-            // Update UI
             scoreDisplay.innerText = `Height: ${Math.floor(score)}m`;
             comboDisplay.innerText = `Combo: x${player.combo}`;
             
@@ -919,7 +1046,7 @@
             let color = player.combo > 2 ? "#ff4444" : "#fff";
             createTextParticle(player.x, player.y - 20, msg, color);
             
-            isChargingJump = false; // Cancel manual charge on bounce
+            isChargingJump = false; 
         }
 
         // --- Rendering ---
@@ -936,31 +1063,26 @@
             return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
         }
 
-        // Helper to get color at a specific absolute altitude (meters)
         function getSkyColorAtAltitude(m) {
             const colors = {
-                cave:      {r: 30, g: 20, b: 10},   // Deep Dark Brown (Constant)
-                skyStart:  {r: 96, g: 165, b: 250}, // Light Blue
-                skyEnd:    {r: 191, g: 219, b: 254},// Pale Blue
-                spaceStart:{r: 30, g: 27, b: 75},   // Deep Blue
-                spaceEnd:  {r: 0, g: 0, b: 0}       // Black
+                cave:      {r: 30, g: 20, b: 10},   
+                skyStart:  {r: 96, g: 165, b: 250}, 
+                skyEnd:    {r: 191, g: 219, b: 254},
+                spaceStart:{r: 30, g: 27, b: 75},   
+                spaceEnd:  {r: 0, g: 0, b: 0}       
             };
 
-            // ALIGNMENT FIX: Changed transition from 1500 to 1550 to match wall height
             if (m < 1550) {
                 return colors.cave;
             } else if (m < 4000) {
-                // Sky Phase (1550 -> 4000)
                 const t = (m - 1550) / 2450;
-                // Light Blue -> Dark Blue
-                const c1 = {r: 135, g: 206, b: 235}; // Sky Blue
-                const c2 = {r: 25, g: 25, b: 112};   // Midnight Blue
+                const c1 = {r: 135, g: 206, b: 235}; 
+                const c2 = {r: 25, g: 25, b: 112};   
                 return lerpColor(c1, c2, t);
             } else if (m < 8000) {
-                // Space Phase (4000 -> 8000)
                 const t = (m - 4000) / 4000;
-                const c1 = {r: 25, g: 25, b: 112};   // Midnight Blue
-                const c2 = {r: 0, g: 0, b: 0};       // Black
+                const c1 = {r: 25, g: 25, b: 112};   
+                const c2 = {r: 0, g: 0, b: 0};       
                 return lerpColor(c1, c2, t);
             } else {
                 return {r: 0, g: 0, b: 0};
@@ -969,37 +1091,27 @@
 
         function drawBackground() {
             const grad = ctx.createLinearGradient(0, 0, 0, height);
-
-            // Calculate Altitude at Top and Bottom of screen
-            // score = approx altitude at bottom
-            // 10 pixels = 1 meter
             const altBottom = score;
             const altTop = score + (height / 10);
 
-            // Function to map altitude to gradient offset
             const getOffset = (m) => {
                 return 1 - ((m - altBottom) / (altTop - altBottom));
             };
 
-            // 1. Add Top and Bottom Colors
             grad.addColorStop(0, rgbToHex(getSkyColorAtAltitude(altTop)));
             grad.addColorStop(1, rgbToHex(getSkyColorAtAltitude(altBottom)));
 
-            // 2. Insert Hard Transition at 1550m if visible (Aligned with Walls)
             if (altBottom < 1550 && altTop > 1550) {
                 const offset = getOffset(1550);
-                // Hard stop: Sky color just above, Cave color just below
                 grad.addColorStop(offset - 0.001, rgbToHex(getSkyColorAtAltitude(1551)));
                 grad.addColorStop(offset, rgbToHex(getSkyColorAtAltitude(1549)));
             }
 
-            // 3. Insert Soft Transition at 4000m if visible
             if (altBottom < 4000 && altTop > 4000) {
                 const offset = getOffset(4000);
                 grad.addColorStop(offset, rgbToHex(getSkyColorAtAltitude(4000)));
             }
 
-            // 4. Insert Soft Transition at 8000m if visible
             if (altBottom < 8000 && altTop > 8000) {
                 const offset = getOffset(8000);
                 grad.addColorStop(offset, rgbToHex(getSkyColorAtAltitude(8000)));
@@ -1008,7 +1120,6 @@
             ctx.fillStyle = grad;
             ctx.fillRect(0, 0, width, height);
             
-            // Slowmo Tint
             if (slowmoActive) {
                 ctx.fillStyle = 'rgba(0,0,0,0.3)';
                 ctx.fillRect(0, 0, width, height);
@@ -1016,20 +1127,13 @@
         }
 
         function drawWallNodes() {
-            // Draw Surface Decor First (Behind walls, technically, or on top?)
-            // Background decor should be behind walls if walls are foreground.
-            // But trees should look like they are 'outside' at the top.
-            // Let's draw trees here
-            
             bgEntities.forEach(b => {
                 if (b.type === 'ground_line') {
                     ctx.fillStyle = b.color;
-                    ctx.fillRect(0, b.y, width, 20); // Grass thick line
+                    ctx.fillRect(0, b.y, width, 20); 
                 } else if (b.type === 'tree') {
-                    // Trunk
                     ctx.fillStyle = '#5d4037';
                     ctx.fillRect(b.x, b.y - b.h, b.w, b.h);
-                    // Foliage (Simple Circle)
                     ctx.fillStyle = '#2e7d32';
                     ctx.beginPath();
                     ctx.arc(b.x + b.w/2, b.y - b.h, b.w * 3, 0, Math.PI * 2);
@@ -1039,9 +1143,7 @@
 
             if (wallNodes.length < 2) return;
 
-            // Draw Decorations (Roots and Stones first)
-            // Roots
-            ctx.strokeStyle = '#4e3b2a'; // Root color
+            ctx.strokeStyle = '#4e3b2a'; 
             ctx.lineWidth = 2;
             for (let w of wallNodes) {
                 if (w.decor) {
@@ -1050,7 +1152,6 @@
                             const originX = d.side === 'left' ? w.left : width - w.right;
                             ctx.beginPath();
                             ctx.moveTo(originX, w.y);
-                            // Simple Bezier curve downward
                             ctx.quadraticCurveTo(originX + d.curve, w.y + d.length/2, originX, w.y + d.length);
                             ctx.stroke();
                         }
@@ -1058,12 +1159,10 @@
                 }
             }
 
-            // Main Wall Fill
-            ctx.fillStyle = '#2b2118'; // Dark Rock/Earth Color
+            ctx.fillStyle = '#2b2118'; 
             ctx.strokeStyle = '#3e3226';
             ctx.lineWidth = 2;
 
-            // Left Wall
             ctx.beginPath();
             ctx.moveTo(0, wallNodes[0].y);
             for (let i = 0; i < wallNodes.length; i++) {
@@ -1074,7 +1173,6 @@
             ctx.fill();
             ctx.stroke();
 
-            // Right Wall
             ctx.beginPath();
             ctx.moveTo(width, wallNodes[0].y);
             for (let i = 0; i < wallNodes.length; i++) {
@@ -1085,21 +1183,18 @@
             ctx.fill();
             ctx.stroke();
 
-            // Overlay Decorations (Stones & Moss)
             for (let w of wallNodes) {
                 if (w.decor) {
                     for (let d of w.decor) {
                         if (d.type === 'stone') {
-                            // Draw embedded stone
                             const centerX = d.side === 'left' ? w.left - d.xOff : width - w.right + d.xOff;
-                            ctx.fillStyle = '#444'; // Grey stone
+                            ctx.fillStyle = '#444'; 
                             ctx.beginPath();
                             ctx.arc(centerX, w.y, d.size, 0, Math.PI * 2);
                             ctx.fill();
                         } else if (d.type === 'moss') {
-                            // Draw moss patch on edge
                             const centerX = d.side === 'left' ? w.left : width - w.right;
-                            ctx.fillStyle = '#4d7c2a'; // Moss Green
+                            ctx.fillStyle = '#4d7c2a'; 
                             ctx.beginPath();
                             ctx.arc(centerX, w.y, d.size, 0, Math.PI * 2);
                             ctx.fill();
@@ -1114,10 +1209,7 @@
             drawWallNodes();
 
             platforms.forEach(p => {
-                // Determine visuals based on altitude of this specific platform
                 const pAltitude = score + (height - p.y) / 10;
-                
-                // Determine biome per platform
                 const isCave = pAltitude < 1550;
 
                 if (p.type === 'ground') {
@@ -1125,39 +1217,32 @@
                     ctx.fillRect(p.x, p.y, p.w, p.h);
                 } else {
                     if (isCave) {
-                        // --- CAVE PLATFORMS (Rock/Moss/Magma) ---
-                        // Platform Body
                         ctx.fillStyle = '#3d342b'; 
                         ctx.fillRect(p.x, p.y, p.w, p.h);
                         
-                        // Moss/Grass on top for cave
                         ctx.fillStyle = '#4d7c2a';
                         ctx.fillRect(p.x, p.y, p.w, 4);
 
-                        // Trampoline (Magma)
                         if (p.hasTrampoline) {
                             ctx.shadowBlur = 10;
                             ctx.shadowColor = '#ff4500';
                             
-                            ctx.fillStyle = '#8b0000'; // Dark Red
+                            ctx.fillStyle = '#8b0000'; 
                             ctx.fillRect(p.tX, p.y + 2, p.tW, p.h - 4);
                             
-                            ctx.fillStyle = '#ff4500'; // Orange Red
+                            ctx.fillStyle = '#ff4500'; 
                             ctx.fillRect(p.tX + 2, p.y + 4, p.tW - 4, p.h - 8);
                             
-                            ctx.fillStyle = '#ffd700'; // Gold
+                            ctx.fillStyle = '#ffd700'; 
                             ctx.fillRect(p.tX + 5, p.y + 6, p.tW - 10, p.h - 12);
 
-                            ctx.shadowBlur = 0; // Reset
+                            ctx.shadowBlur = 0; 
                         }
                     } else {
-                        // --- SKY PLATFORMS (Clouds) ---
-                        // Draw fluff (Undulating circles)
                         ctx.fillStyle = '#ffffff';
                         const numBumps = Math.floor(p.w / 15);
                         const radius = p.h / 1.2;
                         
-                        // Draw bumps along the width
                         for (let i = 0; i <= numBumps; i++) {
                             const bx = p.x + (i * (p.w / numBumps));
                             const by = p.y + p.h / 2;
@@ -1166,18 +1251,13 @@
                             ctx.fill();
                         }
                         
-                        // Fill center rect to connect bumps
                         ctx.fillRect(p.x, p.y, p.w, p.h);
 
-                        // Trampoline (Deep Blue Pad)
                         if (p.hasTrampoline) {
-                            // Pad Base
-                            ctx.fillStyle = '#1e3a8a'; // Deep Dark Blue
-                            // Draw slightly inset to look embedded in cloud
+                            ctx.fillStyle = '#1e3a8a'; 
                             ctx.fillRect(p.tX, p.y + 2, p.tW, p.h - 4);
                             
-                            // Highlight/Surface
-                            ctx.fillStyle = '#3b82f6'; // Bright Blue
+                            ctx.fillStyle = '#3b82f6'; 
                             ctx.fillRect(p.tX + 4, p.y + 4, p.tW - 8, p.h - 8);
                         }
                     }
@@ -1195,22 +1275,19 @@
                 }
             });
 
-            // Draw Player
             if (player.combo > 1 || slowmoActive) {
                 ctx.shadowBlur = slowmoActive ? 20 : 15;
                 ctx.shadowColor = slowmoActive ? '#3b82f6' : '#fff';
             }
             
-            // Charge Effect Color
             if (isChargingJump) {
                 let duration = (performance.now() - jumpChargeStart) / 1000;
-                if (Math.floor(Date.now() / 50) % 2 === 0) { // Shake color
+                if (Math.floor(Date.now() / 50) % 2 === 0) { 
                     ctx.fillStyle = '#ffffff'; 
                 } else {
                     ctx.fillStyle = player.color;
                 }
                 
-                // Draw Charge Bar if > 0.5s
                 if (duration > 0.5) {
                     let progress = Math.min((duration - 0.5) / 1.5, 1.0);
                     ctx.fillStyle = 'rgba(255,255,255,0.5)';
@@ -1219,7 +1296,6 @@
                     ctx.fillRect(player.x, player.y - 10, player.w * progress, 4);
                 }
                 
-                // Shake offset
                 ctx.save();
                 ctx.translate((Math.random()-0.5)*2, (Math.random()-0.5)*2);
             } else {
@@ -1233,7 +1309,6 @@
                 ctx.restore();
             }
             
-            // Eyes
             ctx.shadowBlur = 0;
             ctx.fillStyle = 'black';
             if (player.vy > 0 && !isJetpacking) {
@@ -1244,27 +1319,23 @@
                 ctx.fillRect(player.x + 20, player.y + 5, 5, 5);
             }
 
-            // Draw Jetpack Visuals
             if (isJetpacking || jetpacks > 0) {
-                // Strap
                 ctx.fillStyle = '#333';
                 ctx.fillRect(player.x + 5, player.y + 10, 20, 4);
 
-                // Backpack
-                ctx.fillStyle = '#ef4444'; // Red pack
+                ctx.fillStyle = '#ef4444'; 
                 ctx.fillRect(player.x - 5, player.y + 5, 5, 20);
 
                 if (isJetpacking) {
-                    // Flames
                     const flameH = 10 + Math.random() * 15;
-                    ctx.fillStyle = '#fbbf24'; // Yellow center
+                    ctx.fillStyle = '#fbbf24'; 
                     ctx.beginPath();
                     ctx.moveTo(player.x - 5, player.y + 25);
                     ctx.lineTo(player.x - 2, player.y + 25 + flameH);
                     ctx.lineTo(player.x + 1, player.y + 25);
                     ctx.fill();
 
-                    ctx.fillStyle = '#ef4444'; // Orange outer
+                    ctx.fillStyle = '#ef4444'; 
                     ctx.beginPath();
                     ctx.moveTo(player.x - 6, player.y + 25);
                     ctx.lineTo(player.x - 3, player.y + 25 + flameH + 5);
@@ -1273,13 +1344,11 @@
                 }
             }
 
-            // Draw Indicators
             const cx = player.x + player.w / 2;
             const cy = player.y + player.h / 2;
             const radius = player.w * 1.0; 
             const barWidth = 4;
 
-            // Slowmo Indicator (Blue ')' on right)
             if (slowmoActive) {
                 const pct = slowmoTimer / SLOWMO_DURATION;
                 const maxAngle = Math.PI / 3; 
@@ -1289,18 +1358,15 @@
                 ctx.arc(cx, cy, radius + 10, -currentAngle/2, currentAngle/2);
                 ctx.lineCap = 'round';
                 
-                // Highlight (White Outline)
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
                 ctx.lineWidth = barWidth + 3;
                 ctx.stroke();
 
-                // Main Bar
                 ctx.strokeStyle = '#3b82f6';
                 ctx.lineWidth = barWidth;
                 ctx.stroke();
             }
 
-            // Jetpack Indicator (Red '(' on left)
             if (isJetpacking) {
                 const remaining = Math.max(0, jetpackEndScore - score);
                 const pct = remaining / 400;
@@ -1312,20 +1378,16 @@
                 ctx.arc(cx, cy, radius + 10, Math.PI - currentAngle/2, Math.PI + currentAngle/2);
                 ctx.lineCap = 'round';
                 
-                // Highlight (White Outline)
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
                 ctx.lineWidth = barWidth + 3;
                 ctx.stroke();
 
-                // Main Bar
                 ctx.strokeStyle = '#ef4444';
                 ctx.lineWidth = barWidth;
                 ctx.stroke();
             }
         }
 
-        // --- Particle System ---
-        
         function createParticles(x, y, count, color) {
             for(let i=0; i<count; i++) {
                 particles.push({
@@ -1347,7 +1409,7 @@
                 y: y,
                 vx: 0,
                 vy: -1,
-                life: 2.0, // Longer life for milestones
+                life: 2.0, 
                 text: text,
                 color: color,
                 type: 'text'
@@ -1357,7 +1419,6 @@
         function updateParticles() {
             for (let i = particles.length - 1; i >= 0; i--) {
                 let p = particles[i];
-                // Slowmo affects particles too for visual consistency
                 let pScale = slowmoActive ? 0.25 : 1.0;
                 
                 p.x += p.vx * gameSpeed * pScale;
@@ -1372,8 +1433,6 @@
             }
         }
 
-        // --- Loop ---
-
         function loop(timestamp) {
             if (!gameRunning) return;
             
@@ -1384,8 +1443,6 @@
             draw();
             requestAnimationFrame(loop);
         }
-
-        // --- Input Handling ---
 
         window.addEventListener('keydown', e => {
             if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
@@ -1398,7 +1455,66 @@
             if (keys.hasOwnProperty(e.code)) keys[e.code] = false;
         });
 
-        // Touch Listeners Removed
+        // Joystick Handlers
+        let joystickActive = false;
+        let joystickStart = {x: 0};
+        const maxJoystickDist = 30; // Radius of movement
+
+        function handleJoystickMove(touch) {
+            const rect = joystickZone.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const touchX = touch.clientX;
+            
+            let dx = touchX - centerX;
+            // Clamp visual movement
+            const visualDx = Math.max(-maxJoystickDist, Math.min(maxJoystickDist, dx));
+            
+            joystickKnob.style.transform = `translate(calc(-50% + ${visualDx}px), -50%)`;
+            
+            // Normalize -1 to 1
+            mobileState.joystickX = visualDx / maxJoystickDist;
+        }
+
+        function resetJoystick() {
+            joystickKnob.style.transform = `translate(-50%, -50%)`;
+            mobileState.joystickX = 0;
+            joystickActive = false;
+        }
+
+        joystickZone.addEventListener('touchstart', e => {
+            e.preventDefault();
+            joystickActive = true;
+            handleJoystickMove(e.changedTouches[0]);
+        }, {passive: false});
+
+        joystickZone.addEventListener('touchmove', e => {
+            e.preventDefault();
+            if(joystickActive) {
+                handleJoystickMove(e.changedTouches[0]);
+            }
+        }, {passive: false});
+
+        joystickZone.addEventListener('touchend', e => {
+            e.preventDefault();
+            resetJoystick();
+        });
+
+        // Button Handlers
+        const btnJump = document.getElementById('btn-jump');
+        const btnPower = document.getElementById('btn-power');
+        const btnSlow = document.getElementById('btn-slow');
+
+        btnJump.addEventListener('touchstart', e => { e.preventDefault(); mobileState.jumpPressed = true; btnJump.classList.add('active'); });
+        btnJump.addEventListener('touchend', e => { e.preventDefault(); mobileState.jumpPressed = false; btnJump.classList.remove('active'); });
+
+        btnPower.addEventListener('touchstart', e => { e.preventDefault(); mobileState.powerPressed = true; btnPower.classList.add('active'); });
+        btnPower.addEventListener('touchend', e => { e.preventDefault(); mobileState.powerPressed = false; btnPower.classList.remove('active'); });
+
+        btnSlow.addEventListener('touchstart', e => { e.preventDefault(); activateSlowmo(); btnSlow.classList.add('active'); });
+        btnSlow.addEventListener('touchend', e => { e.preventDefault(); btnSlow.classList.remove('active'); });
+
+        // Init Game
+        init();
 
     </script>
 </body>
