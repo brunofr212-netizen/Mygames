@@ -63,6 +63,7 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
+            transition: all 0.3s ease; /* Smooth transition for responsiveness */
         }
 
         /* Bottom Left Controls (Speed & Size) */
@@ -163,6 +164,7 @@
             align-items: flex-end;
             gap: 10px;
             z-index: 5;
+            transition: all 0.3s ease;
         }
 
         #spawn-group {
@@ -245,6 +247,56 @@
             border-color: rgba(0, 210, 255, 0.3);
         }
 
+        /* --- MOBILE RESPONSIVENESS --- */
+        @media (max-width: 768px) {
+            /* Move Audio to Right side, below Top Controls, to avoid Top Left */
+            #sound-controls {
+                bottom: auto;
+                right: 20px;
+                top: 150px; /* Positioned below the top-right controls */
+                left: auto;
+                align-items: flex-end;
+            }
+
+            /* Scale down panels */
+            .panel {
+                padding: 10px;
+                gap: 5px;
+                transform-origin: center;
+                transform: scale(0.95);
+            }
+            
+            /* Scale down top controls */
+            #top-controls {
+                transform-origin: top right;
+                transform: scale(0.9);
+            }
+
+            /* Make sliders smaller to fit width */
+            input[type=range] {
+                width: 80px;
+            }
+            
+            .control-row {
+                font-size: 12px;
+                gap: 8px;
+            }
+            
+            .control-row label {
+                width: 35px;
+            }
+            
+            #add-ball-btn {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+            
+            .swatch {
+                width: 16px;
+                height: 16px;
+            }
+        }
+
     </style>
 </head>
 <body>
@@ -286,7 +338,7 @@
         <div class="info-text">Tap balls to pop them!</div>
     </div>
 
-    <!-- Bottom Right: Sound Controls -->
+    <!-- Bottom Right (Moves to Top Left on Mobile): Sound Controls -->
     <div id="sound-controls" class="panel">
         <div class="panel-title">Audio</div>
         <div class="wave-selector">
