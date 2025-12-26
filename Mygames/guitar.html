@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Neon Finger Shredder</title>
     <style>
         :root {
@@ -33,6 +33,8 @@
             align-items: center;
             height: 100vh;
             user-select: none;
+            -webkit-user-select: none;
+            touch-action: none; /* Critical for mobile game */
         }
 
         #ui-layer {
@@ -115,6 +117,7 @@
             height: 100vh;
             width: 100%;
             max-width: 800px;
+            touch-action: none;
         }
 
         #start-screen {
@@ -131,11 +134,12 @@
             pointer-events: auto;
             z-index: 10;
             backdrop-filter: blur(5px);
+            overflow-y: auto; /* Allow scrolling on small screens if menu is tall */
         }
 
         h1 {
             font-size: 72px;
-            margin: 0 0 10px 0;
+            margin: 20px 0 10px 0;
             background: linear-gradient(90deg, #ff0055, #00ffff);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -148,7 +152,7 @@
         h2 {
             font-size: 24px;
             color: #fff;
-            margin-bottom: 40px;
+            margin-bottom: 30px;
             font-weight: 300;
             letter-spacing: 2px;
             text-transform: uppercase;
@@ -156,11 +160,18 @@
         }
 
         /* Toggle Switch Styles */
+        .controls-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
         .toggle-container {
             display: flex;
             align-items: center;
             gap: 15px;
-            margin-bottom: 20px;
             background: rgba(255, 255, 255, 0.05);
             padding: 10px 20px;
             border-radius: 30px;
@@ -168,7 +179,7 @@
         }
 
         .toggle-label {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: bold;
             color: #ccc;
             text-transform: uppercase;
@@ -178,8 +189,8 @@
         .switch {
             position: relative;
             display: inline-block;
-            width: 60px;
-            height: 34px;
+            width: 50px;
+            height: 28px;
         }
 
         .switch input { 
@@ -203,8 +214,8 @@
         .slider:before {
             position: absolute;
             content: "";
-            height: 26px;
-            width: 26px;
+            height: 20px;
+            width: 20px;
             left: 4px;
             bottom: 4px;
             background-color: white;
@@ -218,7 +229,7 @@
         }
 
         input:checked + .slider:before {
-            transform: translateX(26px);
+            transform: translateX(22px);
         }
 
         .track-list {
@@ -228,6 +239,8 @@
             margin-bottom: 30px;
             width: 100%;
             max-width: 500px;
+            padding: 0 20px;
+            box-sizing: border-box;
         }
 
         .track-btn {
@@ -306,7 +319,7 @@
         }
 
         .instructions {
-            margin-top: 30px;
+            margin-top: 20px;
             text-align: center;
             line-height: 1.8;
             color: #ccc;
@@ -314,6 +327,8 @@
             padding: 20px 40px;
             border-radius: 10px;
             border: 1px solid #333;
+            max-width: 80%;
+            margin-bottom: 20px;
         }
 
         .hands-container {
@@ -381,6 +396,18 @@
             align-items: center;
             margin-top: 20px;
         }
+
+        /* Responsive Tweaks for Mobile */
+        @media (max-width: 600px) {
+            h1 { font-size: 42px; margin-top: 10px; }
+            h2 { font-size: 18px; margin-bottom: 20px; }
+            .track-btn { padding: 15px; }
+            .track-name { font-size: 16px; }
+            .key-badge { width: 24px; height: 24px; line-height: 24px; font-size: 14px; margin: 0 1px; }
+            .hands-container { gap: 10px; }
+            .controls-row { flex-direction: column; gap: 10px; }
+            .instructions { padding: 15px; }
+        }
     </style>
 </head>
 <body>
@@ -402,21 +429,31 @@
         
         <div id="main-menu-content">
             
-            <div class="toggle-container">
-                <span class="toggle-label">Autoplay Mode</span>
-                <label class="switch">
-                    <input type="checkbox" id="autoplay-toggle">
-                    <span class="slider"></span>
-                </label>
+            <div class="controls-row">
+                <div class="toggle-container">
+                    <span class="toggle-label">Autoplay</span>
+                    <label class="switch">
+                        <input type="checkbox" id="autoplay-toggle">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                
+                <div class="toggle-container">
+                    <span class="toggle-label">Touch Controls</span>
+                    <label class="switch">
+                        <input type="checkbox" id="touch-toggle">
+                        <span class="slider"></span>
+                    </label>
+                </div>
             </div>
 
             <div class="track-list" id="track-list-container">
                 <!-- Tracks injected via JS -->
             </div>
 
-            <div class="instructions">
-                <p>Use your keyboard to play the notes.</p>
-                <div class="hands-container">
+            <div class="instructions" id="instruction-box">
+                <p id="instruction-text">Use your keyboard to play the notes.</p>
+                <div class="hands-container" id="key-legend">
                     <div class="hand-block">
                         <div class="hand-title">Left Hand</div>
                         <span class="key-badge k-a">A</span>
@@ -670,6 +707,7 @@
                 this.startTime = 0;
                 this.isPlaying = false;
                 this.isAutoplay = false;
+                this.isTouchMode = false;
                 this.songDuration = 0;
                 this.currentTrack = null;
                 
@@ -678,21 +716,44 @@
                 this.multiplier = 1;
                 this.lanes = new Array(8).fill(null).map(() => ({ pressed: false, pressTime: 0 }));
                 
+                // Bindings
                 this.handleKeyDown = this.handleKeyDown.bind(this);
                 this.handleKeyUp = this.handleKeyUp.bind(this);
+                this.handleTouchStart = this.handleTouchStart.bind(this);
+                this.handleTouchEnd = this.handleTouchEnd.bind(this);
                 this.loop = this.loop.bind(this);
                 this.startGame = this.startGame.bind(this);
                 this.returnToMenu = this.returnToMenu.bind(this);
+                this.updateInstructions = this.updateInstructions.bind(this);
 
+                // Listeners
                 window.addEventListener('keydown', this.handleKeyDown);
                 window.addEventListener('keyup', this.handleKeyUp);
                 document.getElementById('return-menu-btn').addEventListener('click', this.returnToMenu);
                 
-                // Autoplay Toggle Listener
+                // Touch Listeners
+                this.canvas.addEventListener('touchstart', this.handleTouchStart, {passive: false});
+                this.canvas.addEventListener('touchend', this.handleTouchEnd, {passive: false});
+                
+                // Autoplay Toggle
                 document.getElementById('autoplay-toggle').addEventListener('change', (e) => {
                     this.isAutoplay = e.target.checked;
                 });
 
+                // Touch Mode Toggle
+                const touchToggle = document.getElementById('touch-toggle');
+                touchToggle.addEventListener('change', (e) => {
+                    this.isTouchMode = e.target.checked;
+                    this.updateInstructions();
+                });
+
+                // Auto-detect Mobile/Touch
+                if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+                    this.isTouchMode = true;
+                    touchToggle.checked = true;
+                }
+                
+                this.updateInstructions();
                 this.renderMenu();
             }
 
@@ -715,12 +776,25 @@
                 });
             }
 
+            updateInstructions() {
+                const text = document.getElementById('instruction-text');
+                const legend = document.getElementById('key-legend');
+                
+                if (this.isTouchMode) {
+                    text.innerHTML = "Tap the lanes on screen to play!";
+                    legend.style.display = 'none'; // Hide key letters for touch
+                } else {
+                    text.innerHTML = "Use your keyboard to play the notes.";
+                    legend.style.display = 'flex';
+                }
+            }
+
             resize() {
                 const rect = this.canvas.getBoundingClientRect();
                 this.canvas.width = rect.width;
                 this.canvas.height = rect.height;
                 this.laneWidth = this.canvas.width / 8;
-                this.hitLineY = this.canvas.height - 120;
+                this.hitLineY = this.canvas.height - (this.canvas.height * 0.15); // Dynamic hitline position
             }
 
             handleKeyDown(e) {
@@ -741,6 +815,55 @@
                 }
             }
 
+            // TOUCH HANDLERS
+            handleTouchStart(e) {
+                if (!this.isPlaying || this.isAutoplay || !this.isTouchMode) return;
+                e.preventDefault(); // Stop zoom/scroll
+
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    const touch = e.changedTouches[i];
+                    // Map touch X to lane
+                    // Since canvas is full width/height or handled by CSS, clientX works well
+                    // But lets be precise relative to canvas
+                    const rect = this.canvas.getBoundingClientRect();
+                    const x = touch.clientX - rect.left;
+                    
+                    if (x >= 0 && x <= rect.width) {
+                        const laneIndex = Math.floor(x / this.laneWidth);
+                        if (laneIndex >= 0 && laneIndex < 8 && !this.lanes[laneIndex].pressed) {
+                            this.lanes[laneIndex].pressed = true;
+                            this.lanes[laneIndex].pressTime = Date.now();
+                            this.checkHit(laneIndex);
+                        }
+                    }
+                }
+            }
+
+            handleTouchEnd(e) {
+                 if (!this.isPlaying || this.isAutoplay || !this.isTouchMode) return;
+                 e.preventDefault();
+
+                 // For simplicity, we clear lanes based on active touches.
+                 // Ideally we track touch IDs, but for a simple rhythm game,
+                 // recalculating pressed lanes based on CURRENT touches is robust.
+                 
+                 // Reset all first
+                 for(let i=0; i<8; i++) this.lanes[i].pressed = false;
+
+                 // Re-enable those still held
+                 for (let i = 0; i < e.touches.length; i++) {
+                    const touch = e.touches[i];
+                    const rect = this.canvas.getBoundingClientRect();
+                    const x = touch.clientX - rect.left;
+                    if (x >= 0 && x <= rect.width) {
+                        const laneIndex = Math.floor(x / this.laneWidth);
+                        if (laneIndex >= 0 && laneIndex < 8) {
+                            this.lanes[laneIndex].pressed = true;
+                        }
+                    }
+                 }
+            }
+
             buildTrack(track) {
                 this.songData = [];
                 BPM = track.bpm;
@@ -748,7 +871,6 @@
                 const startOffset = 2.0;
                 let currentBeat = 0;
 
-                // Determine sections based on track type
                 let sections = [];
                 if (track.type === 'generative') {
                      sections = [
@@ -785,7 +907,6 @@
             generateMeasure(startOffset, baseBeat, type, measureIdx) {
                 const t = (beats) => startOffset + (baseBeat + beats) * BEAT_DURATION;
                 
-                // --- DRUMS ---
                 if (type !== 'intro' && type !== 'outro') {
                     this.addEvent('kick', t(0));
                     this.addEvent('kick', t(2));
@@ -795,12 +916,8 @@
                 for(let i=0; i<4; i+=0.5) {
                     this.addEvent('hihat', t(i));
                 }
-
-                // --- NOTE PATTERNS ---
                 
-                // Pattern 1: Basic Rock (Used in Neon Sunrise)
                 if (type === 'verse_basic') {
-                    // Simple left hand bass
                     this.addNote(0, t(0));
                     this.addNote(0, t(0.5));
                     this.addNote(1, t(1.5));
@@ -808,42 +925,34 @@
                     this.addNote(2, t(3));
                 }
                 
-                // Pattern 2: Simple Chorus (Used in Neon Sunrise)
                 if (type === 'chorus_simple') {
-                    // Right hand melody
-                    this.addNote(4, t(0)); // H
-                    this.addNote(5, t(1)); // J
-                    this.addNote(6, t(2)); // K
-                    this.addNote(7, t(3)); // L
-                    this.addNote(6, t(3.5)); // K
+                    this.addNote(4, t(0));
+                    this.addNote(5, t(1));
+                    this.addNote(6, t(2));
+                    this.addNote(7, t(3));
+                    this.addNote(6, t(3.5));
                 }
 
-                // Pattern 3: Heavy Riff (Used in Cyber Storm)
                 if (type === 'verse_heavy') {
                     this.addNote(0, t(0));
                     this.addNote(0, t(0.5));
-                    this.addNote(3, t(1)); // F (Blues)
+                    this.addNote(3, t(1)); 
                     this.addNote(0, t(1.5));
-                    this.addNote(5, t(2)); // G (J)
+                    this.addNote(5, t(2)); 
                     this.addNote(3, t(3));
                     this.addNote(2, t(3.5));
                 }
 
-                // Pattern 4: Fast Solo (Used in Cyber Storm)
                 if (type === 'solo_fast') {
-                    // Staircase pattern
                     const scale = measureIdx % 2 === 0 ? [4,5,6,7] : [7,6,5,4];
                     scale.forEach((lane, i) => this.addNote(lane, t(i*0.5)));
-                    // Rapid fire at end of measure
                     this.addNote(lane => Math.floor(Math.random()*4)+4, t(2));
                     this.addNote(lane => Math.floor(Math.random()*4)+4, t(2.25));
                     this.addNote(lane => Math.floor(Math.random()*4)+4, t(2.5));
                     this.addNote(lane => Math.floor(Math.random()*4)+4, t(2.75));
                 }
 
-                // --- PROCEDURAL GENERATION (Fallback or specific modes) ---
                 if (type === 'verse') {
-                    // Procedural Verse
                      this.addNote(0, t(0));
                      this.addNote(0, t(1.5));
                      this.addNote(5, t(2));
@@ -878,7 +987,6 @@
             }
 
             addNote(lane, time) {
-                // Support passing function for dynamic lane selection
                 const finalLane = typeof lane === 'function' ? lane() : lane;
                 this.songData.push({
                     type: 'note',
@@ -1043,8 +1151,6 @@
                              note.hit = true;
                              this.registerHit(0);
                              this.audio.playNote(note.lane, now);
-                             
-                             // Visual press simulation
                              this.lanes[note.lane].pressed = true;
                              setTimeout(() => { this.lanes[note.lane].pressed = false; }, 100);
                         }
@@ -1098,10 +1204,13 @@
                          this.ctx.fillRect(x + 10, cy - 10, this.laneWidth - 20, 20);
                     }
 
-                    this.ctx.fillStyle = "#666";
-                    this.ctx.font = "bold 24px monospace";
-                    this.ctx.textAlign = "center";
-                    this.ctx.fillText(KEYS[i].toUpperCase(), cx, cy + 40);
+                    // Only draw keys if NOT in touch mode
+                    if (!this.isTouchMode) {
+                        this.ctx.fillStyle = "#666";
+                        this.ctx.font = "bold 24px monospace";
+                        this.ctx.textAlign = "center";
+                        this.ctx.fillText(KEYS[i].toUpperCase(), cx, cy + 40);
+                    }
                 }
 
                 // --- Process Audio Events ---
@@ -1146,7 +1255,6 @@
                     }
                 });
 
-                // Hit Line Laser
                 this.ctx.shadowBlur = 10;
                 this.ctx.shadowColor = "#fff";
                 this.ctx.strokeStyle = "rgba(255,255,255,0.8)";
