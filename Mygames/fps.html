@@ -92,53 +92,56 @@
 
         /* Joystick Esquerdo (Movimento) */
         #joystick-zone-l {
-            bottom: 50px; left: 50px; width: 150px; height: 150px;
-            background: rgba(255, 255, 255, 0.1);
+            bottom: 30px; left: 30px; width: 140px; height: 140px;
+            background: rgba(255, 255, 255, 0.05);
             border-radius: 50%;
-            border: 2px solid rgba(255, 255, 255, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.1);
         }
         
         #joystick-knob-l {
             position: absolute; top: 50%; left: 50%; width: 50px; height: 50px;
-            background: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.3);
             border-radius: 50%;
             transform: translate(-50%, -50%);
+            pointer-events: none; /* O toque é capturado pela zona */
         }
 
         /* Área de Mira (Direita) - Invisível mas capturável */
         #aim-zone {
             top: 0; right: 0; width: 50%; height: 100%;
+            /* background: rgba(255,0,0,0.1); debug */ 
         }
 
         /* Botões de Ação */
         .mobile-btn {
             position: absolute;
-            background: rgba(255, 255, 255, 0.2);
-            border: 2px solid rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.3);
             border-radius: 50%;
             color: white;
             font-weight: bold;
             display: flex; justify-content: center; align-items: center;
             pointer-events: auto;
             user-select: none;
-            font-size: 20px;
+            font-size: 16px;
         }
         .mobile-btn:active { background: rgba(255, 255, 255, 0.5); }
 
         #btn-shoot {
-            bottom: 80px; right: 40px; width: 80px; height: 80px;
-            background: rgba(255, 50, 50, 0.3);
+            bottom: 60px; right: 30px; width: 70px; height: 70px;
+            background: rgba(255, 50, 50, 0.25);
+            border-color: rgba(255, 50, 50, 0.5);
         }
         #btn-jump {
-            bottom: 180px; right: 50px; width: 60px; height: 60px;
+            bottom: 150px; right: 40px; width: 55px; height: 55px;
         }
         #btn-switch {
-            bottom: 50px; right: 150px; width: 60px; height: 60px;
-            border-radius: 10px; /* Quadrado arredondado */
+            bottom: 40px; right: 120px; width: 55px; height: 55px;
+            border-radius: 12px;
         }
         #btn-scope {
-            bottom: 150px; right: 140px; width: 50px; height: 50px;
-            font-size: 14px;
+            bottom: 120px; right: 110px; width: 45px; height: 45px;
+            font-size: 12px;
         }
 
         /* Aviso de Orientação */
@@ -185,6 +188,22 @@
         }
         .menu-btn:hover { background: #e0e0e0; transform: scale(1.05); }
         .menu-btn:active { transform: scale(0.95); }
+
+        /* Responsividade para Mobile no Menu */
+        @media (max-height: 500px) {
+            h1 { font-size: 32px; margin-bottom: 10px; }
+            .menu-btn {
+                padding: 10px 20px;
+                font-size: 16px;
+                min-width: 200px;
+                margin: 5px;
+            }
+            p { font-size: 12px; }
+            #instructions div { margin-bottom: 10px; }
+            #hud-container { bottom: 10px; left: 10px; transform: scale(0.8); transform-origin: bottom left; }
+            #score-container { top: 10px; right: 10px; transform: scale(0.8); transform-origin: top right; }
+            #kill-feed { top: 60px; right: 10px; transform: scale(0.8); transform-origin: top right; }
+        }
 
         /* Estilo Específico para Botão de Treino */
         #btn-training {
@@ -288,21 +307,21 @@
     <!-- Menu Principal -->
     <div id="instructions">
         <h1>KRUNKER JS</h1>
-        <div style="margin-bottom: 30px;">
+        <div style="margin-bottom: 20px;">
             <button id="btn-procedural" class="menu-btn">MAPA PROCEDURAL</button>
             <br>
             <button id="btn-static" class="menu-btn">MAPA CLÁSSICO</button>
             <br>
             <button id="btn-training" class="menu-btn">MAPA TREINO</button>
             <br>
-            <button id="btn-settings" class="menu-btn" style="background: #ddd; font-size: 20px; margin-top: 20px;">CONFIGURAÇÕES</button>
+            <button id="btn-settings" class="menu-btn" style="background: #ddd; font-size: 20px; margin-top: 10px;">CONFIGURAÇÕES</button>
             <br>
             <button id="btn-mobile-toggle" class="menu-btn" style="background: #aaa; font-size: 16px;">ATIVAR MODO MOBILE</button>
             <br>
-            <!-- Botão de Modo Desenvolvedor (NOVO) -->
-            <button id="btn-dev-mode" class="menu-btn" style="background: #555; color: #ccc; font-size: 16px; margin-top: 10px;">MODO DEV: OFF</button>
+            <!-- Botão de Modo Desenvolvedor -->
+            <button id="btn-dev-mode" class="menu-btn" style="background: #555; color: #ccc; font-size: 16px; margin-top: 5px;">MODO DEV: OFF</button>
         </div>
-        <div style="background: rgba(0,0,0,0.5); padding: 20px; border-radius: 10px;">
+        <div style="background: rgba(0,0,0,0.5); padding: 10px; border-radius: 10px;">
             <p>PC: WASD Mover | Espaço Pular | Mouse Atirar</p>
             <p>MOBILE: Joystick Esq Mover | Dir Mirar | Botões</p>
         </div>
@@ -405,7 +424,7 @@
         let currentMapType = 'procedural'; 
         // Inputs
         let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
-        let joystickVector = { x: 0, y: 0 }; // Novo: vetor de joystick
+        let joystickVector = { x: 0, y: 0 }; 
         let canJump = false, isSprinting = false;
         let isScoped = false; 
         let baseFov = 75;
@@ -570,19 +589,36 @@
             // Joystick Movimento
             const joyL = document.getElementById('joystick-zone-l');
             const knobL = document.getElementById('joystick-knob-l');
+            let joystickId = null; // Track specific touch ID
             let joyLData = { startX:0, startY:0, active: false };
 
             joyL.addEventListener('touchstart', (e) => {
                 e.preventDefault();
+                // Se já temos um ID, ignora novos toques
+                if (joystickId !== null) return;
+                
                 const touch = e.changedTouches[0];
-                joyLData.startX = touch.clientX; joyLData.startY = touch.clientY;
+                joystickId = touch.identifier;
+                
+                joyLData.startX = touch.clientX; 
+                joyLData.startY = touch.clientY;
                 joyLData.active = true;
             }, {passive: false});
 
             joyL.addEventListener('touchmove', (e) => {
                 if(!joyLData.active) return;
                 e.preventDefault();
-                const touch = e.changedTouches[0];
+                
+                // Encontra o toque correto
+                let touch = null;
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === joystickId) {
+                        touch = e.changedTouches[i];
+                        break;
+                    }
+                }
+                if (!touch) return;
+
                 let dx = touch.clientX - joyLData.startX;
                 let dy = touch.clientY - joyLData.startY;
                 
@@ -596,40 +632,70 @@
                 
                 knobL.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
                 
-                // Normaliza vetor para movimento (-1 a 1)
+                // Normaliza vetor
                 joystickVector.x = dx / maxDist;
                 joystickVector.y = dy / maxDist;
             }, {passive: false});
 
-            const resetJoyL = () => {
-                joyLData.active = false;
-                knobL.style.transform = `translate(-50%, -50%)`;
-                joystickVector.x = 0; joystickVector.y = 0;
+            const resetJoyL = (e) => {
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === joystickId) {
+                        joystickId = null;
+                        joyLData.active = false;
+                        knobL.style.transform = `translate(-50%, -50%)`;
+                        joystickVector.x = 0; joystickVector.y = 0;
+                        break;
+                    }
+                }
             };
             joyL.addEventListener('touchend', resetJoyL);
             joyL.addEventListener('touchcancel', resetJoyL);
 
             // Mira (Touch Pad Direito)
             const aimZone = document.getElementById('aim-zone');
+            let aimTouchId = null;
             let lastAimX = 0, lastAimY = 0;
             
             aimZone.addEventListener('touchstart', (e) => {
-                lastAimX = e.changedTouches[0].clientX;
-                lastAimY = e.changedTouches[0].clientY;
+                if (aimTouchId !== null) return;
+                const touch = e.changedTouches[0];
+                aimTouchId = touch.identifier;
+                lastAimX = touch.clientX;
+                lastAimY = touch.clientY;
             });
             
             aimZone.addEventListener('touchmove', (e) => {
-                if (!controls.isLocked) return;
+                if (!controls.isLocked && !isMobileMode) return;
                 e.preventDefault();
-                const touch = e.changedTouches[0];
+                
+                let touch = null;
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === aimTouchId) {
+                        touch = e.changedTouches[i];
+                        break;
+                    }
+                }
+                if (!touch) return;
+
                 const dx = touch.clientX - lastAimX;
                 const dy = touch.clientY - lastAimY;
                 lastAimX = touch.clientX; lastAimY = touch.clientY;
                 
-                // Sensibilidade mobile ajustada - REDUZIDA de 0.005 para 0.002
+                // Sensibilidade mobile ajustada
                 const factor = 0.002 * controls.sensitivity;
                 controls.rotateCamera(dx * factor, dy * factor);
             }, {passive: false});
+
+            const resetAim = (e) => {
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === aimTouchId) {
+                        aimTouchId = null;
+                        break;
+                    }
+                }
+            };
+            aimZone.addEventListener('touchend', resetAim);
+            aimZone.addEventListener('touchcancel', resetAim);
 
             // Botões
             document.getElementById('btn-shoot').addEventListener('touchstart', (e) => {
@@ -1194,19 +1260,27 @@
                 // INPUT HANDLING
                 direction.set(0, 0, 0);
                 if (isMobileMode) {
-                    // Mobile Joystick Input
-                    // Note: joystickVector.y is forward/back, joystickVector.x is left/right
-                    direction.z = joystickVector.y; // Forward is negative Z usually, but check logic
-                    // In ThreeJS, negative Z is forward. My joystick returns negative Y for up.
-                    // So negative Y joystick should mean move forward (negative Z).
-                    // Logic: Up (neg Y) -> Move Forward (neg Z). Down (pos Y) -> Move Backward (pos Z).
-                    // Left (neg X) -> Move Left (neg X). Right (pos X) -> Move Right (pos X).
-                    // The standard accumulation logic uses direction.z = forward - backward. 
-                    // Let's directly use joystick values.
+                    // Inversão corrigida: Up = -1 Y no joystick -> Z negativo (frente)
+                    // Mas a lógica anterior estava direta. Se joystick Y é -1 (cima), 
+                    // e Z negativo é frente, então direction.z deve ser negativo.
+                    // Se joystick Y é 1 (baixo), e Z positivo é trás, direction.z deve ser positivo.
+                    // Portanto direction.z = joystickVector.y é correto SE o joystick retornar -1 pra cima.
+                    // O código do joystick: dy = touch.clientY - startY. Arrastar pra cima (clientY menor) -> dy negativo.
+                    // Então joystickVector.y é negativo.
+                    // direction.z = joystickVector.y (negativo).
+                    // velocity.z -= direction.z * speed -> velocity.z -= (negativo) -> velocity.z aumenta (positivo).
+                    // moveForward(-velocity.z) -> moveForward(negativo) -> anda pra trás.
+                    // A lógica de `animate` usa `velocity.z -= direction.z`.
+                    // Se quero andar pra frente (velocity.z deve ser negativo para moveForward(-vel) ser positivo?),
+                    // Espera. `moveForward(d)` move na direção da câmera. Se d > 0, vai pra frente.
+                    // Se velocity.z for negativo, -velocity.z é positivo -> moveForward positivo -> frente.
+                    // Para velocity.z ser negativo, preciso subtrair algo positivo. 
+                    // `velocity.z -= direction.z`. Então `direction.z` tem que ser positivo para ir pra frente.
+                    // Mas meu joystick Y é negativo pra cima.
+                    // Logo: direction.z = -joystickVector.y.
                     
-                    // Actually, let's map it to the existing direction logic
-                    direction.z = joystickVector.y; // Up(-1) -> Forward
-                    direction.x = joystickVector.x; // Right(1) -> Right
+                    direction.z = -joystickVector.y; 
+                    direction.x = -joystickVector.x; // Mesma lógica para lateral (esq/dir)
                     
                 } else {
                     // Keyboard Input
