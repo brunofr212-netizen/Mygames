@@ -298,6 +298,9 @@
             <button id="btn-settings" class="menu-btn" style="background: #ddd; font-size: 20px; margin-top: 20px;">CONFIGURAÇÕES</button>
             <br>
             <button id="btn-mobile-toggle" class="menu-btn" style="background: #aaa; font-size: 16px;">ATIVAR MODO MOBILE</button>
+            <br>
+            <!-- Botão de Modo Desenvolvedor (NOVO) -->
+            <button id="btn-dev-mode" class="menu-btn" style="background: #555; color: #ccc; font-size: 16px; margin-top: 10px;">MODO DEV: OFF</button>
         </div>
         <div style="background: rgba(0,0,0,0.5); padding: 20px; border-radius: 10px;">
             <p>PC: WASD Mover | Espaço Pular | Mouse Atirar</p>
@@ -408,6 +411,8 @@
         let baseFov = 75;
         let baseSensitivity = 5.0; 
         let isMobileMode = false; // Controle de modo mobile
+        let isDevMode = false; // Controle modo dev
+        let gui; // Referência para lil-gui
 
         let prevTime = performance.now();
         const velocity = new THREE.Vector3();
@@ -490,9 +495,14 @@
         }
 
         function setupGUI() {
-            const gui = new GUI({ title: 'Configurações' });
+            gui = new GUI({ title: 'Configurações Dev' });
             const fp = gui.addFolder('Física');
-            fp.add(physicsParams, 'speed', 10, 500); fp.add(physicsParams, 'jumpForce', 10, 200); fp.add(physicsParams, 'gravity', 0, 20);
+            fp.add(physicsParams, 'speed', 10, 500); 
+            fp.add(physicsParams, 'jumpForce', 10, 200); 
+            fp.add(physicsParams, 'gravity', 0, 20);
+            
+            // Inicia escondido
+            gui.hide();
         }
 
         function setScope(state) {
@@ -616,8 +626,8 @@
                 const dy = touch.clientY - lastAimY;
                 lastAimX = touch.clientX; lastAimY = touch.clientY;
                 
-                // Sensibilidade mobile ajustada
-                const factor = 0.005 * controls.sensitivity;
+                // Sensibilidade mobile ajustada - REDUZIDA de 0.005 para 0.002
+                const factor = 0.002 * controls.sensitivity;
                 controls.rotateCamera(dx * factor, dy * factor);
             }, {passive: false});
 
@@ -1297,6 +1307,24 @@
                 document.getElementById('settings-menu').style.display = 'none';
                 document.getElementById('instructions').style.display = 'flex';
             });
+            
+            // Listener para o botão de modo DEV
+            document.getElementById('btn-dev-mode').addEventListener('click', () => {
+                isDevMode = !isDevMode;
+                const btn = document.getElementById('btn-dev-mode');
+                if (isDevMode) {
+                    btn.innerText = "MODO DEV: ON";
+                    btn.style.background = "#44aa44";
+                    btn.style.color = "white";
+                    if(gui) gui.show();
+                } else {
+                    btn.innerText = "MODO DEV: OFF";
+                    btn.style.background = "#555";
+                    btn.style.color = "ccc";
+                    if(gui) gui.hide();
+                }
+            });
+
             document.addEventListener('click', (e) => {
                 if (gameStarted && !isGameOver && !isMobileMode && !e.target.closest('.lil-gui') && !e.target.closest('button') && !e.target.closest('input')) {
                     controls.lock(); initAudio(); 
