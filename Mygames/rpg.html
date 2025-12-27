@@ -1,0 +1,1462 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A Cripta de Aethelgard: Edição Co-op Expandida</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --panel-bg: #1e1e1e;
+            --text-color: #e0e0e0;
+            --accent-color: #d4af37; /* Dourado */
+            --highlight-color: #bb86fc;
+            --danger-color: #cf6679;
+            --success-color: #03dac6;
+            --info-color: #2196f3;
+            
+            /* Cores de Combate */
+            --furious-color: #ff5722;
+            --guarded-color: #4caf50;
+            --fire-color: #ff4400;
+            --ice-color: #00bcd4;
+            --shock-color: #ffeb3b;
+            --ranger-color: #8bc34a;
+            --stealth-color: #607d8b;
+            --cleric-color: #ffd700; /* Ouro claro para clérigo */
+
+            --font-main: 'Courier New', Courier, monospace;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-main);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        /* Container Principal */
+        #game-container {
+            display: grid;
+            grid-template-columns: 320px 1fr 250px;
+            grid-template-rows: auto 1fr auto;
+            gap: 15px;
+            width: 100%;
+            max-width: 1400px;
+            height: 90vh;
+            background-color: #000;
+            border: 2px solid var(--accent-color);
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            padding: 15px;
+            position: relative;
+        }
+
+        @media (max-width: 1000px) {
+            #game-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto 1fr auto;
+                height: auto;
+            }
+        }
+
+        .panel {
+            background-color: var(--panel-bg);
+            border: 1px solid #333;
+            padding: 15px;
+            overflow-y: auto;
+            border-radius: 4px;
+        }
+
+        header {
+            grid-column: 1 / -1;
+            text-align: center;
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 10px;
+        }
+        
+        h1 { margin: 0; color: var(--accent-color); }
+
+        /* Painel do Grupo */
+        #party-panel {
+            border-right: 1px solid #333;
+        }
+
+        .char-card {
+            background: #252525;
+            border: 1px solid #444;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+            position: relative;
+            transition: all 0.3s;
+        }
+
+        .char-card.dead {
+            opacity: 0.5;
+            border-color: var(--danger-color);
+            text-decoration: line-through;
+        }
+
+        /* Visual dos Status */
+        .char-card.defending { box-shadow: inset 0 0 8px var(--info-color); border-color: var(--info-color); }
+        .char-card.furious { box-shadow: inset 0 0 8px var(--furious-color); border-color: var(--furious-color); }
+        .char-card.guarded { box-shadow: inset 0 0 8px var(--guarded-color); border-color: var(--guarded-color); }
+        .char-card.long-range { box-shadow: inset 0 0 8px var(--stealth-color); border-color: var(--stealth-color); opacity: 0.8; }
+        .char-card.close-range { box-shadow: inset 0 0 8px var(--furious-color); border-color: var(--furious-color); }
+        .char-card.buffed { box-shadow: inset 0 0 8px var(--cleric-color); border-color: var(--cleric-color); }
+
+        .lvl-badge {
+            position: absolute;
+            top: 5px; right: 5px;
+            background: var(--accent-color);
+            color: black;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8em;
+        }
+
+        .status-badge {
+            display: inline-block;
+            font-size: 0.7em;
+            padding: 2px 4px;
+            border-radius: 3px;
+            margin-right: 4px;
+            margin-top: 2px;
+        }
+        .status-defend { background: var(--info-color); color: white; }
+        .status-furious { background: var(--furious-color); color: white; }
+        .status-guarded { background: var(--guarded-color); color: white; }
+        .status-long { background: var(--stealth-color); color: white; }
+        .status-close { background: var(--furious-color); color: white; }
+        .status-buff { background: var(--cleric-color); color: black; }
+
+        .hp-bar-container {
+            width: 100%; height: 10px; background: #333; margin-top: 5px;
+        }
+        .hp-bar { height: 100%; background: var(--danger-color); transition: width 0.3s; }
+
+        .ac-display { font-weight: bold; }
+        .ac-bonus { color: var(--guarded-color); }
+        .ac-penalty { color: var(--furious-color); }
+
+        /* História e Ações */
+        #story-display { display: flex; flex-direction: column; justify-content: space-between; }
+        #story-text { font-size: 1.1rem; line-height: 1.6; margin-bottom: 20px; }
+        
+        #actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+
+        button {
+            background-color: #333; color: var(--text-color);
+            border: 1px solid var(--accent-color); padding: 15px;
+            cursor: pointer; font-family: var(--font-main); font-size: 1rem;
+        }
+        button:hover { background-color: var(--accent-color); color: #000; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        /* Botões de Combate */
+        .btn-furious { border-color: var(--furious-color); }
+        .btn-furious:hover { background-color: var(--furious-color); color: white; }
+        
+        .btn-guarded { border-color: var(--guarded-color); }
+        .btn-guarded:hover { background-color: var(--guarded-color); color: white; }
+
+        .btn-defend { border-color: var(--info-color); }
+        .btn-defend:hover { background-color: var(--info-color); color: white; }
+
+        /* Botões de Magia */
+        .btn-fire { border-color: var(--fire-color); color: #ffab91; }
+        .btn-fire:hover { background-color: var(--fire-color); color: black; }
+
+        .btn-ice { border-color: var(--ice-color); color: #80deea; }
+        .btn-ice:hover { background-color: var(--ice-color); color: black; }
+
+        .btn-shock { border-color: var(--shock-color); color: #fff59d; }
+        .btn-shock:hover { background-color: var(--shock-color); color: black; }
+
+        /* Botões de Patrulheiro */
+        .btn-long { border-color: var(--stealth-color); color: #b0bec5; }
+        .btn-long:hover { background-color: var(--stealth-color); color: black; }
+        
+        .btn-medium { border-color: var(--ranger-color); color: #c5e1a5; }
+        .btn-medium:hover { background-color: var(--ranger-color); color: black; }
+        
+        .btn-close { border-color: var(--furious-color); color: #ffab91; }
+        .btn-close:hover { background-color: var(--furious-color); color: black; }
+
+        /* Botões de Clérigo */
+        .btn-heal { border-color: var(--success-color); color: #b9f6ca; }
+        .btn-heal:hover { background-color: var(--success-color); color: black; }
+
+        .btn-buff { border-color: var(--cleric-color); color: #fff59d; }
+        .btn-buff:hover { background-color: var(--cleric-color); color: black; }
+
+
+        /* Log */
+        #game-log { font-size: 0.9rem; border-left: 1px solid #333; }
+        .log-entry { margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 2px; }
+        .log-combat { color: var(--danger-color); }
+        .log-success { color: var(--success-color); }
+        .log-info { color: var(--info-color); }
+        .log-levelup { color: var(--highlight-color); font-weight: bold; border-color: var(--highlight-color); }
+        .log-trap { color: #ff9800; font-style: italic; }
+        .log-warning { color: #ff9800; font-weight: bold; border: 1px solid #ff9800; padding: 2px; }
+        .log-magic-crit { color: var(--shock-color); font-weight: bold; }
+        .log-magic-resist { color: #9e9e9e; font-style: italic; }
+
+        /* Modais */
+        .modal-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 100;
+        }
+        
+        .modal-content {
+            background: var(--panel-bg); border: 2px solid var(--accent-color);
+            padding: 30px; text-align: center; max-width: 500px; width: 90%;
+        }
+
+        .hidden { display: none !important; }
+        
+        input[type="number"], input[type="text"] {
+            background: #111; border: 1px solid #555; color: white;
+            padding: 10px; font-size: 1.2rem; width: 100px; text-align: center; margin: 10px;
+        }
+
+        .player-select-grid {
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 15px;
+        }
+
+        .class-btn { width: 100%; padding: 10px; margin: 5px 0; text-align: left; }
+        .class-btn.selected { background: var(--accent-color); color: black; font-weight: bold; }
+
+        /* Estilo para lista de inimigos */
+        .enemy-box {
+            border: 1px solid #444;
+            padding: 5px;
+            margin-bottom: 5px;
+            background: #2a2a2a;
+        }
+        .enemy-box.dead { opacity: 0.4; text-decoration: line-through; border-color: #333; }
+        .enemy-box.active-target { border-color: var(--danger-color); box-shadow: 0 0 5px var(--danger-color); }
+
+    </style>
+</head>
+<body>
+
+    <!-- MODAL DE CONFIGURAÇÃO -->
+    <div id="setup-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2>Configuração de Jogo</h2>
+            <p>Quantos jogadores (1-6)?</p>
+            <input type="number" id="player-count-input" min="1" max="6" value="2">
+            <br><br>
+            <button onclick="initCharacterCreation()">Próximo</button>
+        </div>
+    </div>
+
+    <!-- MODAL DE CRIAÇÃO DE PERSONAGEM -->
+    <div id="char-create-modal" class="modal-overlay hidden">
+        <div class="modal-content" style="max-width: 600px;">
+            <h2 id="create-title">Jogador 1</h2>
+            <input type="text" id="create-name" placeholder="Digite o Nome">
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; text-align: left;">
+                <div>
+                    <label>Escolha a Classe:</label>
+                    <button class="class-btn" onclick="selectClass('Guerreiro')">Guerreiro</button>
+                    <button class="class-btn" onclick="selectClass('Ladino')">Ladino</button>
+                    <button class="class-btn" onclick="selectClass('Mago')">Mago</button>
+                    <button class="class-btn" onclick="selectClass('Patrulheiro')">Patrulheiro</button>
+                    <button class="class-btn" onclick="selectClass('Clérigo')">Clérigo</button>
+                </div>
+                <div style="background: #252525; padding: 10px; border: 1px solid #444; font-size: 0.9rem;">
+                    <h3 id="desc-title" style="margin-top:0; color:var(--accent-color)">Info da Classe</h3>
+                    <p id="desc-text" style="color: #bbb;">Selecione uma classe para ver detalhes.</p>
+                    <ul id="desc-stats" style="padding-left: 20px; color: #fff;"></ul>
+                </div>
+            </div>
+
+            <button id="confirm-char-btn" onclick="confirmChar()" style="margin-top: 20px; width: 100%;" disabled>Confirmar Personagem</button>
+        </div>
+    </div>
+
+    <!-- MODAL DE DADOS -->
+    <div id="dice-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h2 id="dice-title">Rolar Dados</h2>
+            <p id="dice-prompt">Por favor role...</p>
+            <input type="number" id="dice-input" placeholder="Total">
+            <br><br>
+            <button id="dice-submit">Enviar Resultado</button>
+        </div>
+    </div>
+
+    <!-- MODAL DE SELEÇÃO DE JOGADOR -->
+    <div id="player-select-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h2>Quem tentará isso?</h2>
+            <div id="player-select-container" class="player-select-grid"></div>
+        </div>
+    </div>
+
+    <!-- JOGO PRINCIPAL -->
+    <div id="game-container" class="hidden">
+        <header>
+            <h1>A CRIPTA (CO-OP)</h1>
+        </header>
+
+        <div id="party-panel" class="panel">
+            <h3>GRUPO</h3>
+            <div id="party-list"></div>
+            <div style="margin-top: 20px; border-top: 1px solid #444; padding-top:10px;">
+                <div>Poções: <span id="shared-potions" style="color:var(--success-color)">0</span></div>
+                <div>Ouro: <span id="shared-gold" style="color:var(--accent-color)">0</span></div>
+            </div>
+        </div>
+
+        <div id="story-display" class="panel">
+            <div id="story-text"></div>
+            <div id="actions"></div>
+        </div>
+
+        <div id="game-log" class="panel"></div>
+    </div>
+
+<script>
+    // --- ESTADO DO JOGO ---
+    const gameState = {
+        players: [], // Array de objetos de jogador
+        inventory: { potions: 2, gold: 0 },
+        playerCount: 0,
+        currentCreationIndex: 0,
+        currentNode: "start",
+        selectedClass: null,
+        activeEnemies: [] // Lista de inimigos ativos no combate atual
+    };
+
+    const classes = {
+        'Guerreiro': { 
+            str: 4, agi: 1, int: 0, hp: 30, ac: 14,
+            summary: "Um lutador resistente de linha de frente.",
+            pros: "PV Alto, CA Alta, Dano Físico Forte.",
+            cons: "Baixa Inteligência, fraco contra magia."
+        },
+        'Ladino': { 
+            str: 1, agi: 4, int: 1, hp: 22, ac: 13,
+            summary: "Um assassino rápido e mortal.",
+            pros: "Agilidade Alta, Bons testes de perícia, Balanceado.",
+            cons: "PV Médio, depende de esquiva."
+        },
+        'Mago': { 
+            str: 0, agi: 1, int: 5, hp: 18, ac: 11,
+            summary: "Mestre dos elementos.",
+            pros: "Explora fraquezas inimigas (Fogo/Gelo/Choque). Alto dano explosivo.",
+            cons: "PV e CA Muito Baixos. Fisicamente fraco."
+        },
+        'Patrulheiro': { 
+            str: 1, agi: 4, int: 1, hp: 24, ac: 13,
+            summary: "Mestre do combate à distância.",
+            pros: "Pode Atirar de longe (Inalvejável). Alta Precisão à Curta Distância.",
+            cons: "Deve escolher entre Segurança (Baixo Acerto) ou Precisão (Perigo)."
+        },
+        'Clérigo': {
+            str: 1, agi: 0, int: 4, hp: 24, ac: 12,
+            summary: "Suporte sagrado do grupo.",
+            pros: "Pode Curar e Aumentar a Defesa (Buff) dos aliados.",
+            cons: "Dano ofensivo baixo. Pouca mobilidade."
+        }
+    };
+
+    const riddles = [
+        { q: "Pobres têm. Ricos precisam. Se você comer, você morre. O que é?", answers: ["Dinheiro", "Nada", "Tempo", "Veneno"], correct: 1 },
+        { q: "Sou alto quando jovem e baixo quando velho. O que sou?", answers: ["Uma Árvore", "Um Homem", "Uma Vela", "Uma Sombra"], correct: 2 },
+        { q: "Tenho cidades, mas sem casas. Montanhas, mas sem árvores. Água, mas sem peixes.", answers: ["Um Sonho", "Um Mapa", "Um Planeta", "O Deserto"], correct: 1 },
+        { q: "O que tem muitas chaves mas não abre nenhuma porta?", answers: ["Um Piano", "Um Carcereiro", "Um Código", "Uma Cripta"], correct: 0 },
+        { q: "Quanto mais houver, menos você vê. O que é?", answers: ["Neblina", "Luz", "Escuridão", "Cortinas"], correct: 2 }
+    ];
+
+    // --- FUNÇÕES DE SETUP ---
+
+    function initCharacterCreation() {
+        const count = parseInt(document.getElementById('player-count-input').value);
+        if (count < 1 || count > 6) return alert("Por favor escolha 1-6 jogadores.");
+        gameState.playerCount = count;
+        gameState.currentCreationIndex = 1;
+        
+        document.getElementById('setup-modal').classList.add('hidden');
+        showCharCreate();
+    }
+
+    function showCharCreate() {
+        const modal = document.getElementById('char-create-modal');
+        modal.classList.remove('hidden');
+        document.getElementById('create-title').innerText = `Criar Jogador ${gameState.currentCreationIndex} de ${gameState.playerCount}`;
+        document.getElementById('create-name').value = "";
+        document.getElementById('create-name').focus();
+        
+        // Resetar seleção
+        gameState.selectedClass = null;
+        document.getElementById('confirm-char-btn').disabled = true;
+        document.getElementById('desc-title').innerText = "Info da Classe";
+        document.getElementById('desc-text').innerText = "Selecione uma classe para ver detalhes.";
+        document.getElementById('desc-stats').innerHTML = "";
+        
+        // Resetar estilos de botão
+        document.querySelectorAll('.class-btn').forEach(btn => btn.classList.remove('selected'));
+    }
+
+    function selectClass(cls) {
+        gameState.selectedClass = cls;
+        const info = classes[cls];
+        
+        // Seleção Visual
+        document.querySelectorAll('.class-btn').forEach(btn => {
+            btn.classList.remove('selected');
+            if(btn.innerText === cls) btn.classList.add('selected');
+        });
+
+        // Atualizar Painel de Info
+        document.getElementById('desc-title').innerText = cls;
+        document.getElementById('desc-text').innerText = info.summary;
+        document.getElementById('desc-stats').innerHTML = `
+            <li><strong>FOR:</strong> ${info.str} | <strong>AGI:</strong> ${info.agi} | <strong>INT:</strong> ${info.int}</li>
+            <li><strong>PV:</strong> ${info.hp} | <strong>CA:</strong> ${info.ac}</li>
+            <li style="margin-top:10px; color:#4caf50;">+ ${info.pros}</li>
+            <li style="color:#cf6679;">- ${info.cons}</li>
+        `;
+        
+        document.getElementById('confirm-char-btn').disabled = false;
+    }
+
+    function confirmChar() {
+        if(!gameState.selectedClass) return;
+
+        const cls = gameState.selectedClass;
+        const name = document.getElementById('create-name').value || `Herói ${gameState.currentCreationIndex}`;
+        const stats = classes[cls];
+        
+        gameState.players.push({
+            id: gameState.currentCreationIndex,
+            name: name,
+            class: cls,
+            level: 1,
+            hp: stats.hp,
+            maxHp: stats.hp,
+            str: stats.str,
+            agi: stats.agi,
+            int: stats.int,
+            ac: stats.ac,
+            acMod: 0, // Modificação temporária de CA para combate (Resetável)
+            tempAcBuff: 0, // Buff externo do Clérigo (Persistente no round)
+            rangeStance: 'medium', // Mecânica de Patrulheiro
+            isDead: false,
+            isDefending: false 
+        });
+
+        if (gameState.currentCreationIndex < gameState.playerCount) {
+            gameState.currentCreationIndex++;
+            showCharCreate();
+        } else {
+            document.getElementById('char-create-modal').classList.add('hidden');
+            startGame();
+        }
+    }
+
+    function startGame() {
+        document.getElementById('game-container').classList.remove('hidden');
+        updatePartyUI();
+        loadNode('start');
+        log("A aventura começa...");
+    }
+
+    // --- LÓGICA DE JOGO: LEVEL UP ---
+
+    function triggerLevelUp() {
+        log("O GRUPO SUBIU DE NÍVEL!", "levelup");
+        
+        gameState.players.forEach(p => {
+            if (!p.isDead) {
+                p.level++;
+                p.maxHp += 5;
+                p.hp = p.maxHp; // Cura total
+                
+                // Aumento de atributo baseado na classe
+                if (p.class === 'Guerreiro') p.str += 1;
+                else if (p.class === 'Ladino') p.agi += 1;
+                else if (p.class === 'Mago') p.int += 1;
+                else if (p.class === 'Patrulheiro') p.agi += 1;
+                else if (p.class === 'Clérigo') p.int += 1;
+
+                log(`${p.name} agora é Nvl ${p.level}! (+5 PV, +1 Atributo Principal)`, "success");
+            }
+        });
+        updatePartyUI();
+    }
+
+    // --- UI & LOG ---
+
+    function log(msg, type='') {
+        const div = document.createElement('div');
+        div.className = 'log-entry ' + (type === 'combat' ? 'log-combat' : type === 'success' ? 'log-success' : type === 'levelup' ? 'log-levelup' : type === 'trap' ? 'log-trap' : type === 'info' ? 'log-info' : type === 'warning' ? 'log-warning' : type === 'magic-crit' ? 'log-magic-crit' : type === 'magic-resist' ? 'log-magic-resist' : '');
+        div.innerHTML = msg;
+        document.getElementById('game-log').prepend(div);
+    }
+
+    function updatePartyUI() {
+        const container = document.getElementById('party-list');
+        container.innerHTML = '';
+        
+        gameState.players.forEach(p => {
+            let cardClass = `char-card ${p.isDead ? 'dead' : ''}`;
+            let statusHtml = '';
+
+            // Lógica de Status
+            if(p.isDefending) {
+                cardClass += ' defending';
+                statusHtml += '<span class="status-badge status-defend">PREPARADO</span>';
+            }
+            if(p.acMod < 0) {
+                cardClass += ' furious';
+                if(p.class !== 'Patrulheiro') statusHtml += '<span class="status-badge status-furious">FURIOSO</span>';
+            }
+            if(p.acMod > 0) {
+                cardClass += ' guarded';
+                statusHtml += '<span class="status-badge status-guarded">DEFENSIVO</span>';
+            }
+            if(p.tempAcBuff > 0) {
+                cardClass += ' buffed';
+                statusHtml += '<span class="status-badge status-buff">PROTEGIDO</span>';
+            }
+            
+            // Status visuais de Patrulheiro
+            if(p.rangeStance === 'long') {
+                cardClass += ' long-range';
+                statusHtml += '<span class="status-badge status-long">LONGE</span>';
+            }
+            if(p.rangeStance === 'close') {
+                cardClass += ' close-range';
+                statusHtml += '<span class="status-badge status-close">PERTO</span>';
+            }
+
+            const card = document.createElement('div');
+            card.className = cardClass;
+            const hpPct = Math.max(0, (p.hp / p.maxHp) * 100);
+            
+            // Formatar exibição de CA
+            let totalAC = p.ac + p.acMod + p.tempAcBuff;
+            let acDisplay = p.ac;
+            let acClass = 'ac-display';
+            
+            if(totalAC > p.ac) { acDisplay = `${totalAC}`; acClass += ' ac-bonus'; }
+            if(totalAC < p.ac) { acDisplay = `${totalAC}`; acClass += ' ac-penalty'; }
+
+            card.innerHTML = `
+                <div class="lvl-badge">Nvl ${p.level}</div>
+                <div><strong>${p.name}</strong> (${p.class})</div>
+                <div style="font-size:0.8em; color:#888;">
+                    FOR:${p.str} AGI:${p.agi} INT:${p.int} 
+                    <span class="${acClass}">CA:${acDisplay}</span>
+                </div>
+                <div>${statusHtml}</div>
+                <div class="hp-bar-container">
+                    <div class="hp-bar" style="width:${hpPct}%"></div>
+                </div>
+                <div style="text-align:right; font-size:0.8em;">${p.hp}/${p.maxHp} PV</div>
+            `;
+            container.appendChild(card);
+        });
+
+        document.getElementById('shared-potions').innerText = gameState.inventory.potions;
+        document.getElementById('shared-gold').innerText = gameState.inventory.gold;
+    }
+
+    // --- SISTEMA DE INPUT ---
+
+    function promptDice(title, promptText) {
+        return new Promise(resolve => {
+            const modal = document.getElementById('dice-modal');
+            const input = document.getElementById('dice-input');
+            const submit = document.getElementById('dice-submit');
+            
+            document.getElementById('dice-title').innerText = title;
+            document.getElementById('dice-prompt').innerText = promptText;
+            input.value = '';
+            
+            modal.classList.remove('hidden');
+            input.focus();
+
+            input.onkeydown = (e) => {
+                if(e.key === 'Enter') submit.click();
+            }
+
+            submit.onclick = () => {
+                const val = parseInt(input.value);
+                if (isNaN(val)) return;
+                modal.classList.add('hidden');
+                resolve(val);
+            };
+        });
+    }
+
+    function promptPlayerSelection(reason) {
+        return new Promise(resolve => {
+            const modal = document.getElementById('player-select-modal');
+            const container = document.getElementById('player-select-container');
+            
+            document.querySelector('#player-select-modal h2').innerText = reason || "Quem faz esta ação?";
+            container.innerHTML = '';
+
+            const activePlayers = gameState.players.filter(p => !p.isDead);
+            
+            if (activePlayers.length === 0) {
+                resolve(null);
+                return;
+            }
+
+            activePlayers.forEach(p => {
+                const btn = document.createElement('button');
+                btn.innerHTML = `<strong>${p.name}</strong><br>${p.class}<br>PV: ${p.hp}`;
+                btn.onclick = () => {
+                    modal.classList.add('hidden');
+                    resolve(p);
+                };
+                container.appendChild(btn);
+            });
+
+            modal.classList.remove('hidden');
+        });
+    }
+
+    function promptEnemyTarget() {
+        return new Promise(resolve => {
+            const modal = document.getElementById('player-select-modal');
+            const container = document.getElementById('player-select-container');
+            
+            document.querySelector('#player-select-modal h2').innerText = "Escolha um Inimigo";
+            container.innerHTML = '';
+
+            const activeEnemies = gameState.activeEnemies.filter(e => e.hp > 0);
+            
+            activeEnemies.forEach((e, idx) => {
+                const btn = document.createElement('button');
+                btn.innerHTML = `<strong>${e.name} ${e.id}</strong><br>PV: ${e.hp}/${e.maxHp}`;
+                btn.onclick = () => {
+                    modal.classList.add('hidden');
+                    resolve(e);
+                };
+                container.appendChild(btn);
+            });
+
+            modal.classList.remove('hidden');
+        });
+    }
+
+    function promptAllyTarget() {
+        return new Promise(resolve => {
+            const modal = document.getElementById('player-select-modal');
+            const container = document.getElementById('player-select-container');
+            
+            document.querySelector('#player-select-modal h2').innerText = "Escolha um Aliado";
+            container.innerHTML = '';
+
+            const activePlayers = gameState.players.filter(p => !p.isDead);
+            
+            activePlayers.forEach(p => {
+                const btn = document.createElement('button');
+                btn.innerHTML = `<strong>${p.name}</strong><br>PV: ${p.hp}/${p.maxHp}`;
+                btn.onclick = () => {
+                    modal.classList.add('hidden');
+                    resolve(p);
+                };
+                container.appendChild(btn);
+            });
+
+            modal.classList.remove('hidden');
+        });
+    }
+
+    // --- GERAÇÃO DE ARMADILHAS ---
+    function generateTrapNode(nextNodeId) {
+        const riddle = riddles[Math.floor(Math.random() * riddles.length)];
+        const nodeName = "dynamic_trap";
+
+        const trapChoices = riddle.answers.map((ans, index) => {
+            if (index === riddle.correct) {
+                return { 
+                    text: ans, 
+                    next: nextNodeId, 
+                    onEnter: () => log("Resposta correta! A armadilha desativa.", "success") 
+                };
+            } else {
+                return { 
+                    text: ans, 
+                    next: nextNodeId,
+                    onEnter: () => {
+                        const dmg = 5;
+                        log(`ERRADO! A armadilha dispara! Todos tomam ${dmg} de dano.`, "combat");
+                        gameState.players.forEach(p => {
+                            if(!p.isDead) {
+                                p.hp -= dmg;
+                                if(p.hp <= 0) { p.isDead = true; p.hp = 0; log(`${p.name} morreu na armadilha!`, "combat"); }
+                            }
+                        });
+                        updatePartyUI();
+                        const living = gameState.players.filter(p => !p.isDead);
+                        if(living.length === 0) loadNode('death');
+                    }
+                };
+            }
+        });
+
+        storyNodes[nodeName] = {
+            text: `Você tenta avançar, mas uma barreira mágica bloqueia o caminho! Um rosto espectral aparece na parede.<br><br>
+                   <span style="color:#ff9800; font-style:italic;">"${riddle.q}"</span><br><br>
+                   Escolha com sabedoria, ou sofra as consequências.`,
+            choices: trapChoices
+        };
+
+        return nodeName;
+    }
+
+    // --- ENGINE DE HISTÓRIA ---
+
+    async function handleChoice(choice) {
+        let nextNodeId = choice.next;
+
+        if (choice.req) {
+            const volunteer = await promptPlayerSelection(`Quem tenta: ${choice.text}?`);
+            if (!volunteer) return; 
+
+            const statVal = volunteer[choice.req.stat];
+            let statName = choice.req.stat.toUpperCase();
+            if(statName === 'STR') statName = 'FOR';
+
+            const roll = await promptDice(`Teste de Perícia: ${statName}`, `${volunteer.name}, role um d20. Adicione seu bônus de +${statVal}.`);
+            const total = roll + statVal;
+
+            log(`${volunteer.name} rolou ${roll} + ${statVal} = ${total} (CD ${choice.req.dc})`);
+
+            if (total >= choice.req.dc) {
+                log("Resultado: <span style='color:#03dac6'>SUCESSO</span>");
+            } else {
+                log("Resultado: <span style='color:#cf6679'>FALHA</span>");
+                if (choice.failNode) {
+                    if(choice.failDamage) {
+                        volunteer.hp -= choice.failDamage;
+                        log(`${volunteer.name} tomou ${choice.failDamage} de dano!`, 'combat');
+                        updatePartyUI();
+                        if(volunteer.hp <= 0) {
+                            volunteer.isDead = true;
+                            log(`${volunteer.name} morreu na armadilha!`, 'combat');
+                        }
+                    }
+                    nextNodeId = choice.failNode;
+                }
+            }
+        } 
+        else if (choice.encounterPool) {
+            startCombat(choice.encounterPool, choice.next);
+            return; 
+        } 
+        
+        if (choice.possibleTrap && Math.random() < 0.5) {
+            log("UMA ARMADILHA DISPARA!", "trap");
+            nextNodeId = generateTrapNode(nextNodeId);
+        }
+
+        loadNode(nextNodeId);
+    }
+
+    function loadNode(nodeId) {
+        const node = storyNodes[nodeId];
+        gameState.currentNode = nodeId;
+        
+        const textBox = document.getElementById('story-text');
+        const actionBox = document.getElementById('actions');
+        
+        textBox.innerHTML = `<p>${node.text}</p>`;
+        actionBox.innerHTML = '';
+
+        if(node.isLevelUp) triggerLevelUp();
+        if(node.onEnter) node.onEnter();
+
+        if (node.choices) {
+            node.choices.forEach(c => {
+                const btn = document.createElement('button');
+                btn.innerHTML = c.text;
+                btn.onclick = () => handleChoice(c);
+                actionBox.appendChild(btn);
+            });
+        }
+    }
+
+    function renderEnemies() {
+        const active = gameState.activeEnemies.filter(e => e.hp > 0);
+        let html = '<h3 style="border-bottom:1px solid #444; margin-bottom:10px;">Inimigos Ativos:</h3>';
+        
+        active.forEach(e => {
+            let weakPT = e.weak === 'Fire' ? 'Fogo' : e.weak === 'Ice' ? 'Gelo' : e.weak === 'Lightning' ? 'Raio' : null;
+            let status = e.isCharging ? '<span style="color:var(--furious-color); font-weight:bold;">CARREGANDO</span>' : '';
+            
+            // Tradução do Tipo de Inimigo
+            let typePT = e.aiType;
+            if(typePT === 'BASIC') typePT = 'Básico';
+            if(typePT === 'TANK') typePT = 'Tanque';
+            if(typePT === 'CHARGER') typePT = 'Carregador';
+            if(typePT === 'SWARM') typePT = 'Enxame';
+            if(typePT === 'CASTER') typePT = 'Conjurador';
+
+            html += `
+            <div class="enemy-box">
+                <div style="display:flex; justify-content:space-between;">
+                    <strong>${e.name} ${e.id}</strong>
+                    <span style="color:var(--danger-color)">${e.hp}/${e.maxHp} PV</span>
+                </div>
+                <div style="font-size:0.8em; color:#888;">${e.desc}</div>
+                <div style="font-size:0.85em; font-weight:bold; color:#bb86fc; margin-top:2px;">Tipo: ${typePT}</div>
+                ${status ? `<div>${status}</div>` : ''}
+                ${weakPT ? `<div style="font-size:0.8em; color:var(--success-color)">Fraco: ${weakPT}</div>` : ''}
+            </div>`;
+        });
+        return html;
+    }
+
+    // --- ENGINE DE COMBATE AVANÇADA (MULTI-INIMIGOS) ---
+
+    async function startCombat(encounterPool, winNode) {
+        const encounterTemplate = encounterPool[Math.floor(Math.random() * encounterPool.length)];
+        const playerCount = gameState.players.length;
+
+        gameState.activeEnemies = [];
+
+        // Instanciar Inimigos
+        encounterTemplate.forEach((template, idx) => {
+            let scaleFactor = encounterTemplate.length > 1 ? (playerCount * 0.7) : playerCount;
+            if (scaleFactor < 1) scaleFactor = 1;
+
+            const totalHP = Math.ceil(template.hp * scaleFactor);
+            
+            let multiAttack = false;
+            if(template.aiType === 'SWARM') multiAttack = true; 
+            if(encounterTemplate.length === 1 && playerCount >= 4) multiAttack = true;
+
+            gameState.activeEnemies.push({
+                ...template,
+                id: idx + 1, // ID para diferenciar (Goblin 1, Goblin 2)
+                hp: totalHP,
+                maxHp: totalHP,
+                multiAttack: multiAttack,
+                isCharging: false
+            });
+        });
+
+        log(`<strong>Combate Iniciado!</strong> ${gameState.activeEnemies.length} inimigos se aproximam!`, 'combat');
+
+        // LOOP DE COMBATE
+        while (gameState.activeEnemies.some(e => e.hp > 0)) {
+            const activePlayers = gameState.players.filter(p => !p.isDead);
+            if (activePlayers.length === 0) {
+                loadNode('death');
+                return;
+            }
+
+            // --- TURNO DO JOGADOR ---
+            // Resetar Status
+            gameState.players.forEach(p => {
+                p.isDefending = false;
+                p.acMod = 0; 
+                p.tempAcBuff = 0; // Resetar buff do Clérigo no início do round geral
+                p.rangeStance = 'medium'; 
+            });
+
+            // Atualiza UI com lista de inimigos
+            document.getElementById('story-text').innerHTML = renderEnemies();
+
+            for (let player of activePlayers) {
+                if (!gameState.activeEnemies.some(e => e.hp > 0)) break;
+
+                let actionDone = false;
+                while(!actionDone) {
+                    updatePartyUI();
+                    const action = await new Promise(resolve => {
+                        const box = document.getElementById('actions');
+                        box.innerHTML = `<div style="grid-column:1/-1; text-align:center; color:#bb86fc; margin-bottom:10px;">Turno de ${player.name}</div>`;
+                        
+                        // --- MENU GERAL ---
+                        if(player.class === 'Guerreiro' || player.class === 'Ladino') {
+                            const furiousBtn = document.createElement('button');
+                            furiousBtn.innerHTML = "<strong>Atq Furioso</strong><br><small>+2 Acerto, 1.5x Dano</small>";
+                            furiousBtn.classList.add('btn-furious');
+                            furiousBtn.onclick = () => resolve('furious');
+
+                            const balancedBtn = document.createElement('button');
+                            balancedBtn.innerHTML = "<strong>Atq Balanceado</strong><br><small>Status Normais</small>";
+                            balancedBtn.onclick = () => resolve('balanced');
+
+                            const guardedBtn = document.createElement('button');
+                            guardedBtn.innerHTML = "<strong>Atq Defensivo</strong><br><small>-2 Acerto, +3 CA</small>";
+                            guardedBtn.classList.add('btn-guarded');
+                            guardedBtn.onclick = () => resolve('guarded');
+                            box.appendChild(furiousBtn);
+                            box.appendChild(balancedBtn);
+                            box.appendChild(guardedBtn);
+                        } 
+                        else if(player.class === 'Mago') {
+                            const fireBtn = document.createElement('button');
+                            fireBtn.innerHTML = "<strong>Bola de Fogo</strong>";
+                            fireBtn.classList.add('btn-fire');
+                            fireBtn.onclick = () => resolve('fire');
+
+                            const iceBtn = document.createElement('button');
+                            iceBtn.innerHTML = "<strong>Seta de Gelo</strong>";
+                            iceBtn.classList.add('btn-ice');
+                            iceBtn.onclick = () => resolve('ice');
+
+                            const shockBtn = document.createElement('button');
+                            shockBtn.innerHTML = "<strong>Choque</strong>";
+                            shockBtn.classList.add('btn-shock');
+                            shockBtn.onclick = () => resolve('shock');
+                            box.appendChild(fireBtn);
+                            box.appendChild(iceBtn);
+                            box.appendChild(shockBtn);
+                        }
+                        else if(player.class === 'Patrulheiro') {
+                            const longBtn = document.createElement('button');
+                            longBtn.innerHTML = "<strong>Disparo (Longo)</strong>";
+                            longBtn.classList.add('btn-long');
+                            longBtn.onclick = () => resolve('snipe');
+
+                            const medBtn = document.createElement('button');
+                            medBtn.innerHTML = "<strong>Tiro Firme</strong>";
+                            medBtn.classList.add('btn-medium');
+                            medBtn.onclick = () => resolve('balanced');
+
+                            const closeBtn = document.createElement('button');
+                            closeBtn.innerHTML = "<strong>Queima-Roupa</strong>";
+                            closeBtn.classList.add('btn-close');
+                            closeBtn.onclick = () => resolve('pointblank');
+                            box.appendChild(longBtn);
+                            box.appendChild(medBtn);
+                            box.appendChild(closeBtn);
+                        }
+                        else if(player.class === 'Clérigo') {
+                            const basicBtn = document.createElement('button');
+                            basicBtn.innerHTML = "<strong>Maça (Básico)</strong><br><small>Ataque Simples</small>";
+                            basicBtn.onclick = () => resolve('balanced');
+
+                            const healBtn = document.createElement('button');
+                            healBtn.innerHTML = "<strong>Curar Ferimentos</strong><br><small>Recuperar Aliado</small>";
+                            healBtn.classList.add('btn-heal');
+                            healBtn.onclick = () => resolve('heal');
+
+                            const buffBtn = document.createElement('button');
+                            buffBtn.innerHTML = "<strong>Escudo da Fé</strong><br><small>+3 CA para Aliado</small>";
+                            buffBtn.classList.add('btn-buff');
+                            buffBtn.onclick = () => resolve('buff_ac');
+
+                            box.appendChild(basicBtn);
+                            box.appendChild(healBtn);
+                            box.appendChild(buffBtn);
+                        }
+                        
+                        const braceBtn = document.createElement('button');
+                        braceBtn.innerHTML = "<strong>Preparar</strong><br><small>Defesa / 50% Dano</small>";
+                        braceBtn.classList.add('btn-defend');
+                        braceBtn.onclick = () => resolve('brace');
+
+                        const healBtn = document.createElement('button');
+                        healBtn.innerHTML = `Poção (${gameState.inventory.potions})`;
+                        healBtn.onclick = () => resolve('potion');
+                        if (gameState.inventory.potions <= 0) healBtn.disabled = true;
+
+                        box.appendChild(braceBtn);
+                        box.appendChild(healBtn);
+                    });
+
+                    // --- EXECUTAR AÇÃO ---
+                    
+                    // Suporte
+                    if (action === 'brace') {
+                        player.isDefending = true;
+                        log(`${player.name} se prepara para o impacto!`, 'info');
+                        actionDone = true;
+                        continue;
+                    }
+                    if (action === 'potion') {
+                        gameState.inventory.potions--;
+                        player.hp = Math.min(player.maxHp, player.hp + 10);
+                        log(`${player.name} bebe uma poção (+10 PV).`, 'success');
+                        actionDone = true;
+                        continue;
+                    }
+
+                    // Ações de Clérigo
+                    if (action === 'heal') {
+                        const targetAlly = await promptAllyTarget();
+                        const healAmount = Math.floor(Math.random() * 8) + 1 + player.int; // d8 + INT
+                        targetAlly.hp = Math.min(targetAlly.maxHp, targetAlly.hp + healAmount);
+                        log(`${player.name} curou ${targetAlly.name} em ${healAmount} PV!`, 'success');
+                        actionDone = true;
+                        continue;
+                    }
+                    if (action === 'buff_ac') {
+                        const targetAlly = await promptAllyTarget();
+                        targetAlly.tempAcBuff = 3;
+                        log(`${player.name} protegeu ${targetAlly.name} (+3 CA)!`, 'info');
+                        actionDone = true;
+                        continue;
+                    }
+
+                    // Selecionar Alvo Inimigo
+                    let targetEnemy = null;
+                    const livingEnemies = gameState.activeEnemies.filter(e => e.hp > 0);
+                    
+                    if(livingEnemies.length === 1) {
+                        targetEnemy = livingEnemies[0];
+                    } else {
+                        targetEnemy = await promptEnemyTarget();
+                    }
+
+                    let mod = 0;
+                    if(player.class === 'Guerreiro') mod = player.str;
+                    else if(player.class === 'Ladino') mod = player.agi;
+                    else if(player.class === 'Mago') mod = player.int;
+                    else if(player.class === 'Patrulheiro') mod = player.agi;
+                    else if(player.class === 'Clérigo') mod = player.str; // Ataque básico usa FOR
+
+                    let hitBonus = 0;
+                    let actionName = "Ataque";
+                    
+                    if (action === 'furious') { hitBonus = 2; player.acMod = -4; actionName = "Furioso"; }
+                    if (action === 'guarded') { hitBonus = -2; player.acMod = 3; actionName = "Defensivo"; }
+                    if (action === 'snipe') { hitBonus = -4; player.rangeStance = 'long'; actionName = "Longo"; }
+                    if (action === 'pointblank') { hitBonus = 2; player.rangeStance = 'close'; player.acMod = -2; actionName = "Queima-Roupa"; }
+
+                    let promptTxt = `Role d20 + ${mod}`;
+                    if(hitBonus !== 0) promptTxt += ` ${hitBonus > 0 ? '+' : ''}${hitBonus}`;
+                    promptTxt += `. vs CA ${targetEnemy.ac}.`;
+                    
+                    if(['fire','ice','shock'].includes(action)) actionName = "Magia";
+
+                    const roll = await promptDice(`${actionName} vs ${targetEnemy.name}`, promptTxt);
+
+                    let effectiveAC = targetEnemy.ac;
+                    if(targetEnemy.isCharging) effectiveAC -= 2;
+
+                    if (roll + hitBonus >= effectiveAC) {
+                        let dmgRoll = await promptDice(`Dano`, `ACERTOU! Role Dano + ${mod}.`);
+                        
+                        if(action === 'furious') dmgRoll = Math.ceil(dmgRoll * 1.5);
+                        
+                        let isCrit = false;
+                        let isResist = false;
+                        let element = null;
+
+                        if (action === 'fire') element = 'Fire';
+                        if (action === 'ice') element = 'Ice';
+                        if (action === 'shock') element = 'Lightning';
+
+                        if(element) {
+                            if (targetEnemy.weak === element) { dmgRoll *= 2; isCrit = true; }
+                            else if (targetEnemy.resist === element) { dmgRoll = Math.floor(dmgRoll * 0.5); isResist = true; }
+                        }
+
+                        if(targetEnemy.isCharging) {
+                            dmgRoll = Math.floor(dmgRoll * 1.5);
+                            log("Crítico em inimigo exposto!", "success");
+                        }
+
+                        targetEnemy.hp -= dmgRoll;
+                        
+                        let msg = `${player.name} atinge ${targetEnemy.name} por ${dmgRoll} de dano!`;
+                        if(isCrit) msg += " (SUPER EFETIVO!)";
+                        if(isResist) msg += " (Resistido)";
+                        
+                        log(msg, isCrit ? 'magic-crit' : isResist ? 'magic-resist' : 'success');
+                    } else {
+                        log(`${player.name} errou ${targetEnemy.name}.`);
+                    }
+                    
+                    document.getElementById('story-text').innerHTML = renderEnemies();
+                    actionDone = true;
+                }
+            }
+
+            // --- TURNO DOS INIMIGOS ---
+            const livingEnemiesCheck = gameState.activeEnemies.filter(e => e.hp > 0);
+            if (livingEnemiesCheck.length > 0) {
+                log(`<strong>Turno dos Inimigos...</strong>`);
+                
+                for(let enemy of livingEnemiesCheck) {
+                    if (enemy.hp <= 0) continue;
+
+                    if (enemy.aiType === 'CHARGER') {
+                        if (enemy.isCharging) {
+                            log(`${enemy.name} LIBERA O ATAQUE CARREGADO!`, 'warning');
+                            enemy.isCharging = false;
+                            await performEnemyAttack(enemy, true); 
+                        } else {
+                            if (Math.random() < 0.35) {
+                                enemy.isCharging = true;
+                                log(`${enemy.name} começa a brilhar com energia perigosa!`, 'warning');
+                                document.getElementById('story-text').innerHTML = renderEnemies();
+                                continue; 
+                            } else {
+                                await performEnemyAttack(enemy, false);
+                            }
+                        }
+                    } else {
+                        await performEnemyAttack(enemy, false);
+                    }
+                }
+            }
+            document.getElementById('story-text').innerHTML = renderEnemies();
+            updatePartyUI();
+        }
+
+        log(`Todos os Inimigos Derrotados!`, 'success');
+        loadNode(winNode);
+    }
+
+    async function performEnemyAttack(enemy, isMassive) {
+        const attacks = enemy.multiAttack ? 2 : 1;
+        const numTargets = isMassive ? 2 : attacks;
+
+        for(let i=0; i<numTargets; i++) {
+            const living = gameState.players.filter(p => !p.isDead);
+            if(living.length === 0) break;
+
+            let potentialTargets = living.filter(p => p.rangeStance !== 'long');
+            if (potentialTargets.length === 0) {
+                potentialTargets = living;
+                log(`${enemy.name} avista os atiradores!`, 'warning');
+            }
+
+            const target = potentialTargets[Math.floor(Math.random() * potentialTargets.length)];
+            
+            let promptText = `Inimigo ataca ${target.name}! Role d20 (Bônus +${enemy.atkBonus || 4}).`;
+            if (isMassive) promptText = `ATAQUE MASSIVO em ${target.name}! Role d20 (Bônus +${enemy.atkBonus || 4}).`;
+
+            const atkRoll = await promptDice(`Ataque Inimigo #${i+1}`, promptText);
+            
+            // Calcular CA efetiva (CA base + Modificador de Postura + Buff do Clérigo)
+            let targetAC = target.ac + target.acMod + (target.tempAcBuff || 0);
+
+            if (atkRoll >= targetAC) {
+                let dmg = Math.floor(Math.random() * enemy.dmgDie) + 2; 
+                
+                if (isMassive) {
+                    dmg = dmg * 3; 
+                    log(`CRÍTICO CARREGADO! Dano Bruto: ${dmg}`, 'warning');
+                }
+
+                if (target.isDefending) {
+                    dmg = Math.floor(dmg / 2);
+                    log(`${target.name} preparou! Dano reduzido para ${dmg}.`, 'info');
+                }
+
+                target.hp -= dmg;
+                log(`${target.name} toma ${dmg} de dano!`, 'combat');
+                if (target.hp <= 0) {
+                    target.isDead = true;
+                    target.hp = 0;
+                    log(`${target.name} caiu!`, 'combat');
+                }
+            } else {
+                log(`${target.name} esquiva do ataque (CA ${targetAC}).`);
+            }
+        }
+    }
+
+    // --- NÓS DA HISTÓRIA (EXPANDIDO) ---
+    
+    const storyNodes = {
+        "start": {
+            text: "O grupo chega à Cripta de Aethelgard sob uma tempestade torrencial. Diante de vocês, a fortaleza antiga se ergue. Como vocês desejam entrar?",
+            choices: [
+                { text: "Entrada Principal: Portão de Ferro (Equilibrado)", next: "main_gate" },
+                { text: "Invasão pelos Esgotos (Furtivo/Nojento)", next: "sewer_entry" },
+                { text: "Escalar a Torre em Ruínas (Perigoso/Alto)", next: "tower_climb" }
+            ]
+        },
+        
+        // ROTA 1: PORTÃO (Clássica)
+        "main_gate": {
+            text: "O portão de ferro está trancado e enferrujado.",
+            choices: [
+                { text: "[FOR] Forçar abertura (CD 13)", req: {stat: 'str', dc: 13}, next: "vermin_hall", failNode: "gate_fail", failDamage: 3 },
+                { text: "[AGI] Abrir fechadura (CD 13)", req: {stat: 'agi', dc: 13}, next: "vermin_hall", failNode: "gate_fail", failDamage: 3 },
+                { text: "[INT] Runas (CD 13)", req: {stat: 'int', dc: 13}, next: "vermin_hall", failNode: "gate_fail", failDamage: 3 }
+            ]
+        },
+        "gate_fail": {
+            text: "A tentativa falha. O mecanismo quebra, disparando detritos.",
+            choices: [ { text: "Cuidar dos ferimentos e entrar.", next: "vermin_hall" } ]
+        },
+        "vermin_hall": {
+            text: "Vocês entram na Antecâmara. O cheiro de mofo é forte. Sombras se movem...",
+            choices: [
+                { 
+                    text: "Combate!", 
+                    encounterPool: [
+                        [
+                            { name: "Centopeia Gigante", hp: 12, ac: 12, dmgDie: 6, atkBonus: 3, desc: "Monstro ágil.", aiType: 'CHARGER', weak: 'Fire', resist: 'Ice' },
+                            { name: "Rato", hp: 6, ac: 10, dmgDie: 4, atkBonus: 2, desc: "Verme pequeno.", aiType: 'SWARM', weak: 'Fire' },
+                            { name: "Rato", hp: 6, ac: 10, dmgDie: 4, atkBonus: 2, desc: "Verme pequeno.", aiType: 'SWARM', weak: 'Fire' }
+                        ],
+                        [
+                            { name: "Kobold", hp: 8, ac: 13, dmgDie: 4, atkBonus: 4, desc: "Guerreiro pequeno.", aiType: 'BASIC', weak: 'Ice' },
+                            { name: "Kobold", hp: 8, ac: 13, dmgDie: 4, atkBonus: 4, desc: "Guerreiro pequeno.", aiType: 'BASIC', weak: 'Ice' },
+                            { name: "Kobold Líder", hp: 12, ac: 14, dmgDie: 6, atkBonus: 5, desc: "Lidera o bando.", aiType: 'TANK', weak: 'Ice' }
+                        ]
+                    ], 
+                    next: "levelup_1" 
+                }
+            ]
+        },
+
+        // ROTA 2: ESGOTOS
+        "sewer_entry": {
+            text: "A grade do esgoto cede com um rangido. O túnel é escuro e cheira a morte. Vocês precisam prender a respiração ou ter estômago forte.",
+            choices: [
+                { text: "[FOR] Suportar o mau cheiro (CD 12)", req: {stat: 'str', dc: 12}, next: "sewer_combat", failNode: "sewer_fail", failDamage: 4 },
+                { text: "[INT] Usar pano com ervas (CD 12)", req: {stat: 'int', dc: 12}, next: "sewer_combat", failNode: "sewer_fail", failDamage: 4 }
+            ]
+        },
+        "sewer_fail": {
+            text: "O gás do pântano deixa vocês enjoados antes da batalha.",
+            choices: [{ text: "Tossir e preparar armas...", next: "sewer_combat" }]
+        },
+        "sewer_combat": {
+            text: "Algo emerge da água imunda!",
+            choices: [
+                {
+                    text: "Lutar!",
+                    encounterPool: [
+                        [
+                            { name: "Limo Ácido", hp: 20, ac: 8, dmgDie: 4, atkBonus: 3, desc: "Corrói armaduras.", aiType: 'BASIC', weak: 'Fire', resist: 'Physical' },
+                            { name: "Crocodilo Zumbi", hp: 18, ac: 14, dmgDie: 8, atkBonus: 4, desc: "Mandíbulas fortes.", aiType: 'TANK', weak: 'Fire' }
+                        ]
+                    ],
+                    next: "levelup_1"
+                }
+            ]
+        },
+
+        // ROTA 3: TORRE
+        "tower_climb": {
+            text: "A parede de pedra é escorregadia pela chuva. Um passo em falso pode ser fatal.",
+            choices: [
+                { text: "[AGI] Escalar com rapidez (CD 14)", req: {stat: 'agi', dc: 14}, next: "tower_combat", failNode: "climb_fail", failDamage: 6 },
+                { text: "[FOR] Subir na força bruta (CD 14)", req: {stat: 'str', dc: 14}, next: "tower_combat", failNode: "climb_fail", failDamage: 6 }
+            ]
+        },
+        "climb_fail": {
+            text: "Vocês escorregam e batem contra as pedras antes de alcançar a borda.",
+            choices: [{ text: "Subir no parapeito...", next: "tower_combat" }]
+        },
+        "tower_combat": {
+            text: "No topo da torre, guardiões alados despertam.",
+            choices: [
+                {
+                    text: "Combate Aéreo!",
+                    encounterPool: [
+                        [
+                            { name: "Gárgula Vigia", hp: 22, ac: 16, dmgDie: 6, atkBonus: 4, desc: "Pele de pedra.", aiType: 'TANK', weak: 'Lightning', resist: 'Fire' },
+                            { name: "Arqueiro Esqueleto", hp: 10, ac: 12, dmgDie: 6, atkBonus: 5, desc: "Ataca de longe.", aiType: 'BASIC', weak: 'Lightning' }
+                        ]
+                    ],
+                    next: "levelup_1"
+                }
+            ]
+        },
+
+        // HUB CENTRAL
+        "levelup_1": {
+            text: "Vitória! O grupo descansa brevemente. Todos os caminhos levam ao coração da masmorra.",
+            isLevelUp: true,
+            choices: [ { text: "Avançar para a Encruzilhada", next: "crossroads", possibleTrap: true } ]
+        },
+
+        "crossroads": {
+            text: "Vocês chegam a uma grande rotunda. Três caminhos se apresentam.",
+            choices: [
+                { text: "Esquerda: As Criptas (Cheiro de podridão)", next: "crypt_entrance" },
+                { text: "Centro: O Grande Salão (Barulho de metal)", next: "grand_hall" },
+                { text: "Direita: A Biblioteca (Zumbido mágico)", next: "library_entrance" }
+            ]
+        },
+        
+        // ROTA A: CRIPTAS
+        "crypt_entrance": {
+            text: "Vocês descem para as criptas úmidas. Mortos-vivos guardam a entrada.",
+            choices: [
+                {
+                    text: "Lutar!",
+                    encounterPool: [
+                        [
+                            { name: "Zumbi", hp: 15, ac: 10, dmgDie: 6, atkBonus: 3, desc: "Lento mas forte.", aiType: 'TANK', weak: 'Fire', resist: 'Ice' },
+                            { name: "Zumbi", hp: 15, ac: 10, dmgDie: 6, atkBonus: 3, desc: "Lento mas forte.", aiType: 'TANK', weak: 'Fire', resist: 'Ice' }
+                        ]
+                    ],
+                    next: "ossuary"
+                }
+            ]
+        },
+        "ossuary": {
+            text: "Vocês chegam ao Ossuário, uma sala feita de ossos. Um Necromante está realizando um ritual!",
+            choices: [
+                {
+                    text: "Interromper Ritual!",
+                    encounterPool: [
+                        [
+                            { name: "Necromante", hp: 20, ac: 12, dmgDie: 8, atkBonus: 5, desc: "Conjurador sombrio.", aiType: 'CASTER', weak: 'Fire' },
+                            { name: "Esqueleto", hp: 10, ac: 12, dmgDie: 6, atkBonus: 4, desc: "Servo de ossos.", aiType: 'BASIC', weak: 'Lightning' },
+                            { name: "Esqueleto", hp: 10, ac: 12, dmgDie: 6, atkBonus: 4, desc: "Servo de ossos.", aiType: 'BASIC', weak: 'Lightning' }
+                        ]
+                    ],
+                    next: "loot_room"
+                }
+            ]
+        },
+
+        // ROTA B: GRANDE SALÃO (NOVA)
+        "grand_hall": {
+            text: "O teto é alto e adornado com bandeiras rasgadas. Uma patrulha de elite bloqueia o caminho.",
+            choices: [
+                {
+                    text: "Combate Honrado!",
+                    encounterPool: [
+                        [
+                            { name: "Cavaleiro Negro", hp: 25, ac: 17, dmgDie: 8, atkBonus: 6, desc: "Armadura pesada.", aiType: 'TANK', weak: 'Lightning' },
+                            { name: "Escudeiro", hp: 15, ac: 14, dmgDie: 6, atkBonus: 4, desc: "Protege o mestre.", aiType: 'BASIC', weak: 'Lightning' }
+                        ]
+                    ],
+                    next: "throne_room_entrance"
+                }
+            ]
+        },
+        "throne_room_entrance": {
+            text: "Antes da sala do trono, armadilhas de lâminas cobrem o chão.",
+            choices: [
+                { text: "[AGI] Correr pelas lâminas (CD 15)", req: {stat: 'agi', dc: 15}, next: "loot_room", failNode: "blades_fail", failDamage: 8 }
+            ]
+        },
+        "blades_fail": {
+            text: "As lâminas cortam fundo!",
+            choices: [{ text: "Mancar até a sala do tesouro...", next: "loot_room" }]
+        },
+
+        // ROTA C: BIBLIOTECA
+        "library_entrance": {
+            text: "A biblioteca está uma bagunça. Construtos mágicos patrulham a área.",
+            choices: [
+                {
+                    text: "Lutar!",
+                    encounterPool: [
+                        [
+                            { name: "Armadura Animada", hp: 18, ac: 16, dmgDie: 6, atkBonus: 4, desc: "Blindada.", aiType: 'TANK', weak: 'Lightning', resist: 'Fire' },
+                            { name: "Livro Voador", hp: 8, ac: 14, dmgDie: 4, atkBonus: 6, desc: "Difícil de acertar.", aiType: 'SWARM', weak: 'Fire' }
+                        ]
+                    ],
+                    next: "alchemy_lab"
+                }
+            ]
+        },
+        "alchemy_lab": {
+            text: "O Laboratório de Alquimia borbulha com poções instáveis. Um Golem Alquímico guarda a saída.",
+            choices: [
+                {
+                    text: "Destruir Golem!",
+                    encounterPool: [
+                        [
+                            { name: "Golem de Ácido", hp: 35, ac: 14, dmgDie: 8, atkBonus: 5, desc: "Corpo líquido corrosivo.", aiType: 'CHARGER', weak: 'Ice', resist: 'Lightning' },
+                            { name: "Limo", hp: 10, ac: 8, dmgDie: 4, atkBonus: 3, desc: "Poça viva.", aiType: 'BASIC', weak: 'Fire' }
+                        ]
+                    ],
+                    next: "loot_room"
+                }
+            ]
+        },
+
+        "loot_room": {
+            text: "Vocês encontram um baú seguro. +3 Poções encontradas.",
+            onEnter: () => { gameState.inventory.potions += 3; updatePartyUI(); },
+            choices: [{ text: "Seguir para o Abismo", next: "chasm_bridge" }]
+        },
+
+        "chasm_bridge": {
+            text: "A ponte sobre o abismo está bloqueada por um Troll.",
+            choices: [
+                { 
+                    text: "Lutar na Ponte", 
+                    encounterPool: [
+                        [ { name: "Troll da Ponte", hp: 40, ac: 14, dmgDie: 10, atkBonus: 6, desc: "Regenera feridas.", aiType: 'CHARGER', weak: 'Fire', resist: 'Ice' } ]
+                    ], 
+                    next: "antechamber" 
+                }
+            ]
+        },
+        
+        "antechamber": {
+            text: "Vocês estão na porta do chefe. A Guarda de Elite protege a entrada.",
+            choices: [
+                {
+                    text: "Derrotar a Guarda",
+                    encounterPool: [
+                        [
+                            { name: "Guarda de Elite", hp: 25, ac: 17, dmgDie: 8, atkBonus: 6, desc: "Bem treinado.", aiType: 'TANK' },
+                            { name: "Guarda de Elite", hp: 25, ac: 17, dmgDie: 8, atkBonus: 6, desc: "Bem treinado.", aiType: 'TANK' },
+                            { name: "Sacerdote Sombrio", hp: 15, ac: 12, dmgDie: 6, atkBonus: 5, desc: "Cura os aliados.", aiType: 'CASTER', weak: 'Lightning' }
+                        ]
+                    ],
+                    next: "levelup_2"
+                }
+            ]
+        },
+
+        "levelup_2": {
+            text: "A Guarda caiu. Vocês sentem o poder final fluindo. É hora de acabar com isso.",
+            isLevelUp: true,
+            choices: [ { text: "ENTRAR NO SANTUÁRIO", next: "boss" } ]
+        },
+
+        "boss": {
+            text: "O Lorde da Cripta e seus tenentes aguardam.",
+            choices: [
+                { 
+                    text: "BATALHA FINAL", 
+                    encounterPool: [
+                        [
+                            { name: "Lorde Lich", hp: 50, ac: 16, dmgDie: 12, atkBonus: 8, desc: "O mestre da morte.", aiType: 'CHARGER', weak: 'Fire', resist: 'Ice' },
+                            { name: "Cavaleiro da Morte", hp: 30, ac: 18, dmgDie: 8, atkBonus: 7, desc: "Guarda-costas leal.", aiType: 'TANK', weak: 'Lightning' }
+                        ]
+                    ],
+                    next: "win" 
+                }
+            ]
+        },
+        "win": {
+            text: "<h1 style='color:gold'>VITÓRIA!</h1><p>Vocês derrotaram o mal antigo e conquistaram a Cripta!</p>",
+            choices: [{ text: "Jogar Novamente", next: "start", onEnter: () => location.reload() }]
+        },
+        "death": {
+            text: "<h1 style='color:red'>DERROTA</h1><p>A Cripta reivindicou suas almas.</p>",
+            choices: [{ text: "Reiniciar", next: "start", onEnter: () => location.reload() }]
+        }
+    };
+
+    // Auto init
+    document.getElementById('setup-modal').classList.remove('hidden');
+
+</script>
+</body>
+</html>
