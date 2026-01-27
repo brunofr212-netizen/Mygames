@@ -139,7 +139,7 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const APP_ID = 'krunker-classic-final-v3';
+        const APP_ID = 'krunker-classic-final-v4'; // Versão Nova para limpar fantasmas
 
         // --- GLOBAIS DO JOGO ---
         let camera, scene, renderer, controls;
@@ -367,6 +367,14 @@
             const delta = (time - prevTime) / 1000;
             prevTime = time;
 
+            // --- CORREÇÃO DE FANTASMAS (HEARTBEAT) ---
+            const now = Date.now();
+            for (let id in remotePlayers) {
+                if (now - remotePlayers[id].lastUpdate > 10000) { // 10 Segundos sem sinal
+                    removeRemotePlayer(id);
+                }
+            }
+
             if (gameStarted && !isDead && controls.isLocked) {
                 // Física
                 velocity.x -= velocity.x * 10.0 * delta;
@@ -565,7 +573,7 @@
             velocity.set(0,0,0);
         }
 
-        // Remote Player Management (CORRIGIDO: Modelo Bot Completo)
+        // Remote Player Management (CORRIGIDO: Modelo Bot Completo + LastUpdate)
         function spawnRemotePlayer(id, data) {
             const g = new THREE.Group();
             
@@ -607,7 +615,8 @@
             g.position.set(data.x, data.y, data.z);
             
             scene.add(g);
-            remotePlayers[id] = { mesh: g, target: g.position.clone(), rot: 0, health: data.health || 100 };
+            // Armazena 'lastUpdate' para limpar fantasmas
+            remotePlayers[id] = { mesh: g, target: g.position.clone(), rot: 0, health: data.health || 100, lastUpdate: Date.now() };
         }
 
         function updateRemotePlayer(id, data) {
@@ -615,6 +624,7 @@
                 remotePlayers[id].target.set(data.x, data.y, data.z); // Recebe y do chão
                 remotePlayers[id].rot = data.ry;
                 if(data.health !== undefined) remotePlayers[id].health = data.health;
+                remotePlayers[id].lastUpdate = Date.now(); // Atualiza heartbeat
             }
         }
         function removeRemotePlayer(id) {
