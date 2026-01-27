@@ -644,15 +644,59 @@
             }
         }
         function takeDamage(amt) {
+            if (isDead) return;
             playerHealth -= amt;
             updateHUD();
             document.getElementById('damage-overlay').style.boxShadow = "inset 0 0 0 50px rgba(255,0,0,0.5)";
             setTimeout(() => document.getElementById('damage-overlay').style.boxShadow = "none", 100);
+            
             if(playerHealth <= 0) {
-                isDead = true; document.exitPointerLock();
-                document.getElementById('menu-overlay').style.display = 'flex';
-                document.getElementById('status-msg').innerText = "ELIMINADO";
-                document.getElementById('btn-play').innerText = "RENASCER";
+                isDead = true; 
+                document.exitPointerLock();
+                
+                // UI de Respawn
+                const menu = document.getElementById('menu-overlay');
+                const btn = document.getElementById('btn-play');
+                const status = document.getElementById('status-msg');
+                
+                menu.style.display = 'flex';
+                btn.style.display = 'none'; // Esconde botão para auto-respawn
+                
+                let count = 3;
+                status.innerText = `RENASCENDO EM ${count}...`;
+                
+                const interval = setInterval(() => {
+                    count--;
+                    if (count > 0) {
+                        status.innerText = `RENASCENDO EM ${count}...`;
+                    } else {
+                        clearInterval(interval);
+                        status.innerText = "RENASCENDO...";
+                        
+                        // Reset Logico
+                        gameStarted = true;
+                        isDead = false;
+                        playerHealth = 100;
+                        updateHUD();
+                        respawnPlayerSafe();
+                        
+                        // Atualiza DB
+                        updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'players', localPlayerId), {
+                            health: 100,
+                            x: camera.position.x,
+                            y: camera.position.y,
+                            z: camera.position.z,
+                            lastSeen: serverTimestamp()
+                        }).catch(()=>{});
+
+                        // Tenta travar o mouse (pode falhar sem clique)
+                        document.body.requestPointerLock();
+                        
+                        // UI Reset
+                        menu.style.display = 'none';
+                        btn.style.display = 'block'; 
+                    }
+                }, 1000);
             }
         }
         function updateHUD() {
