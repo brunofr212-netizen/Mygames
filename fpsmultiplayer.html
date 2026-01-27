@@ -139,7 +139,7 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const APP_ID = 'krunker-classic-final-v2';
+        const APP_ID = 'krunker-classic-final-v3';
 
         // --- GLOBAIS DO JOGO ---
         let camera, scene, renderer, controls;
@@ -282,7 +282,6 @@
         function createWeapon() {
             if (weapon) {
                 camera.remove(weapon);
-                // Limpar geometria anterior para evitar vazamento de memória
                 weapon.traverse((child) => {
                     if (child.isMesh) {
                         child.geometry.dispose();
@@ -292,7 +291,6 @@
             }
             weapon = new THREE.Group();
             
-            // Materiais mais simples para garantir visibilidade, mas com resposta à luz
             const dark = new THREE.MeshLambertMaterial({ color: 0x111111 });
             const grey = new THREE.MeshLambertMaterial({ color: 0x555555 });
             const wood = new THREE.MeshLambertMaterial({ color: 0x5c4033 });
@@ -323,7 +321,7 @@
             }
 
             weapon.position.set(0.3, -0.3, -0.6);
-            camera.add(weapon); // ADICIONA A ARMA COMO FILHA DA CÂMERA
+            camera.add(weapon); 
             document.getElementById('weapon-name').innerText = weapons[type].name;
         }
 
@@ -416,7 +414,6 @@
 
                 // Arma Sway e Renderização
                 if (weapon) {
-                    // Sway logic...
                     const isMoving = velocity.x*velocity.x + velocity.z*velocity.z > 1;
                     if(isMoving) { weapon.position.x = 0.3 + Math.cos(time*0.01)*0.02; weapon.position.y = -0.3 + Math.sin(time*0.02)*0.02; }
                     else { weapon.position.x += (0.3-weapon.position.x)*0.1; weapon.position.y += (-0.3-weapon.position.y)*0.1; }
@@ -472,15 +469,28 @@
                 end.copy(playerHits[0].point);
                 const hitObj = playerHits[0].object;
                 let targetId = null;
+                // Procura recursivamente a qual player este objeto (ou pai dele) pertence
                 for(let uid in remotePlayers) {
-                    const p = remotePlayers[uid];
-                    if (p.mesh === hitObj || p.mesh.children.includes(hitObj)) { targetId = uid; break; }
+                    const pMesh = remotePlayers[uid].mesh;
+                    let found = false;
+                    // Verifica se o objeto atingido é parte da malha do jogador
+                    hitObj.traverseAncestors((ancestor) => {
+                        if (ancestor === pMesh) found = true;
+                    });
+                    if (found || hitObj === pMesh) { targetId = uid; break; }
                 }
-                if (targetId) {
+
+                if (targetId && remotePlayers[targetId]) {
                     playSpatialSound('hit_marker');
                     createParticles(end, 0xff0000, 10);
+                    
+                    // Cálculo de Dano Corrigido
+                    // Pegamos a vida conhecida localmente e subtraímos
+                    const currentHP = remotePlayers[targetId].health || 100;
+                    const newHP = Math.max(0, currentHP - stats.damage);
+                    
                     updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'players', targetId), { 
-                        health: Math.max(0, 100) 
+                        health: newHP
                     }).catch(()=>{});
                 }
             } else {
@@ -555,21 +565,56 @@
             velocity.set(0,0,0);
         }
 
-        // Remote Player Management
+        // Remote Player Management (CORRIGIDO: Modelo Bot Completo)
         function spawnRemotePlayer(id, data) {
             const g = new THREE.Group();
-            const mat = new THREE.MeshLambertMaterial({color: 0xff0000});
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.8, 0.45), mat); body.position.y = 1.4;
-            const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.45, 0.45), new THREE.MeshLambertMaterial({color: 0xffccaa})); head.position.y = 2.1;
-            g.add(body, head);
+            
+            // Materiais
+            const skin = new THREE.MeshLambertMaterial({ color: 0xffdbac });
+            const uniform = new THREE.MeshLambertMaterial({ color: 0x2a3b4c });
+            const vest = new THREE.MeshLambertMaterial({ color: 0x111111 });
+            const pants = new THREE.MeshLambertMaterial({ color: 0x222222 });
+
+            // Torso (Parent) - Corrigido para posição relativa dentro do grupo
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.8, 0.45), uniform);
+            torso.position.y = 1.4; 
+            g.add(torso);
+
+            // Colete
+            const vMesh = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.5, 0.5), vest);
+            vMesh.position.y = 0.1; torso.add(vMesh);
+
+            // Cabeça
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.45, 0.45), skin);
+            head.position.y = 0.7; torso.add(head);
+
+            // Braços
+            const armGeo = new THREE.BoxGeometry(0.2, 0.7, 0.2);
+            const armL = new THREE.Mesh(armGeo, uniform); armL.position.set(-0.5, 0.3, 0); torso.add(armL);
+            const armR = new THREE.Mesh(armGeo, uniform); armR.position.set(0.5, 0.3, 0); torso.add(armR);
+
+            // Arma na mão
+            const gunGroup = new THREE.Group(); gunGroup.position.set(0, -0.4, 0.4); armR.add(gunGroup);
+            const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.15, 0.6), new THREE.MeshLambertMaterial({color:0x333333}));
+            gunGroup.add(gunBody);
+
+            // Pernas
+            const legGeo = new THREE.BoxGeometry(0.25, 0.8, 0.25);
+            const legL = new THREE.Mesh(legGeo, pants); legL.position.set(-0.2, -0.4, 0); torso.add(legL);
+            const legR = new THREE.Mesh(legGeo, pants); legR.position.set(0.2, -0.4, 0); torso.add(legR);
+
+            // Posição no mundo (data.y agora representa o CHÃO)
             g.position.set(data.x, data.y, data.z);
+            
             scene.add(g);
-            remotePlayers[id] = { mesh: g, target: g.position.clone(), rot: 0 };
+            remotePlayers[id] = { mesh: g, target: g.position.clone(), rot: 0, health: data.health || 100 };
         }
+
         function updateRemotePlayer(id, data) {
             if(remotePlayers[id]) {
-                remotePlayers[id].target.set(data.x, data.y, data.z);
+                remotePlayers[id].target.set(data.x, data.y, data.z); // Recebe y do chão
                 remotePlayers[id].rot = data.ry;
+                if(data.health !== undefined) remotePlayers[id].health = data.health;
             }
         }
         function removeRemotePlayer(id) {
@@ -580,8 +625,11 @@
             if(now - lastSyncTime > SYNC_RATE) {
                 lastSyncTime = now;
                 updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'players', localPlayerId), {
-                    x: camera.position.x, y: camera.position.y - physicsParams.playerHeight + 1.6, z: camera.position.z,
-                    ry: camera.rotation.y, lastSeen: serverTimestamp()
+                    x: camera.position.x, 
+                    y: camera.position.y - physicsParams.playerHeight, // CORREÇÃO: Envia Y do Chão (Pés)
+                    z: camera.position.z,
+                    ry: camera.rotation.y, 
+                    lastSeen: serverTimestamp()
                 }).catch(()=>{});
             }
         }
@@ -609,7 +657,6 @@
             // CAMERA
             camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.05, 1000); 
             camera.rotation.order = 'YXZ';
-            // IMPORTANTE: Adicionar câmera na cena para os filhos (armas) renderizarem
             scene.add(camera);
 
             renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setSize(window.innerWidth, window.innerHeight); renderer.shadowMap.enabled = true;
@@ -620,7 +667,6 @@
             dir.shadow.camera.left = -100; dir.shadow.camera.right = 100; dir.shadow.camera.top = 100; dir.shadow.camera.bottom = -100; dir.shadow.mapSize.width=2048; dir.shadow.mapSize.height=2048;
             scene.add(dir);
 
-            // Luz da Câmera (Para a arma)
             const camLight = new THREE.PointLight(0xffffff, 0.5);
             camera.add(camLight);
 
