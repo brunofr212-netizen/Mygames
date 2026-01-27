@@ -43,6 +43,12 @@
         .menu-btn:hover { background: #ffbb66; transform: scale(1.05); }
         .menu-btn:disabled { background: #555; border-color: #333; color: #888; cursor: not-allowed; transform: none; }
 
+        #respawn-timer {
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 48px; color: red; font-weight: bold; text-shadow: 2px 2px 0 #000;
+            display: none; pointer-events: none; z-index: 18;
+        }
+
         /* HUD */
         #hud-container {
             position: absolute; bottom: 20px; left: 20px;
@@ -85,6 +91,7 @@
     <div id="damage-overlay"></div>
     <div id="crosshair"></div>
     <div id="sniper-scope"></div>
+    <div id="respawn-timer">RENASCENDO EM 3...</div>
     
     <div id="hud-container">
         <div id="health-text">100</div>
@@ -103,7 +110,7 @@
     <div id="menu-overlay">
         <h1>KRUNKER MP</h1>
         <div id="status-msg" class="status-text">Conectando ao Firebase...</div>
-        <button id="btn-play" class="menu-btn" disabled>JOGAR AGORA</button>
+        <button id="btn-play" class="menu-btn" disabled>INICIAR JOGO</button>
         <div style="background: rgba(0,0,0,0.5); padding: 20px; border-radius: 10px; margin-top: 20px; text-align: center;">
             <p>WASD: Mover | ESPAÇO: Pular | SHIFT: Correr</p>
             <p>MOUSE: Mirar/Atirar | 1, 2, 3: Trocar Arma</p>
@@ -139,7 +146,7 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const APP_ID = 'krunker-classic-final-v4'; // Versão Nova para limpar fantasmas
+        const APP_ID = 'krunker-classic-final-v5'; // Versão Nova
 
         // --- GLOBAIS DO JOGO ---
         let camera, scene, renderer, controls;
@@ -204,6 +211,7 @@
             }
             onPointerLockChange() {
                 this.isLocked = (document.pointerLockElement === this.domElement);
+                // Se saiu do pointer lock e NÃO está morto, mostra menu
                 if (!this.isLocked && gameStarted && !isDead) {
                     document.getElementById('menu-overlay').style.display = 'flex';
                     document.getElementById('btn-play').innerText = "CONTINUAR";
@@ -226,7 +234,17 @@
                 
                 const btn = document.getElementById('btn-play');
                 btn.disabled = false;
-                btn.addEventListener('click', startGame);
+                btn.addEventListener('click', () => {
+                    // Inicializar Áudio no clique
+                    if (!audioCtx) initAudio();
+                    else if (audioCtx.state === 'suspended') audioCtx.resume();
+                    
+                    if (!gameStarted) {
+                        startGame();
+                    } else {
+                        controls.lock();
+                    }
+                });
 
                 const playersRef = collection(db, 'artifacts', APP_ID, 'public', 'data', 'players');
                 onSnapshot(playersRef, (snapshot) => {
@@ -259,18 +277,22 @@
         }
 
         async function startGame() {
-            // Inicializar Áudio no clique (correção de política de navegador)
-            if (!audioCtx) initAudio();
-            else if (audioCtx.state === 'suspended') audioCtx.resume();
-
             document.body.requestPointerLock();
+            
+            // Spawn Inicial
+            respawnPlayerSafe();
             
             // Registra jogador no DB
             await setDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'players', localPlayerId), {
-                x: 0, y: 10, z: 0, ry: 0, health: 100, lastSeen: serverTimestamp()
+                x: camera.position.x, 
+                y: camera.position.y - physicsParams.playerHeight, 
+                z: camera.position.z, 
+                ry: 0, 
+                health: 100, 
+                dead: false,
+                lastSeen: serverTimestamp()
             });
 
-            respawnPlayerSafe();
             gameStarted = true;
             isDead = false;
             playerHealth = 100;
@@ -337,7 +359,6 @@
             mapGroup = new THREE.Group();
             scene.add(mapGroup);
 
-            // Chão
             const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshLambertMaterial({ color: 0x333333 }));
             floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true;
             mapGroup.add(floor);
@@ -367,15 +388,21 @@
             const delta = (time - prevTime) / 1000;
             prevTime = time;
 
-            // --- CORREÇÃO DE FANTASMAS (HEARTBEAT) ---
+            // Heartbeat check
             const now = Date.now();
             for (let id in remotePlayers) {
-                if (now - remotePlayers[id].lastUpdate > 10000) { // 10 Segundos sem sinal
-                    removeRemotePlayer(id);
-                }
+                if (now - remotePlayers[id].lastUpdate > 10000) removeRemotePlayer(id);
             }
 
-            if (gameStarted && !isDead && controls.isLocked) {
+            // Animação de Morte (Local)
+            if (isDead) {
+                // Efeito: Câmera cai e tomba
+                camera.position.y = THREE.MathUtils.lerp(camera.position.y, 0.5, delta * 5);
+                camera.rotation.z = THREE.MathUtils.lerp(camera.rotation.z, Math.PI / 4, delta * 2);
+            } else if (gameStarted && controls.isLocked) {
+                // Garante que rotação Z está zerada se vivo
+                if (camera.rotation.z !== 0) camera.rotation.z = 0;
+
                 // Física
                 velocity.x -= velocity.x * 10.0 * delta;
                 velocity.z -= velocity.z * 10.0 * delta;
@@ -420,7 +447,7 @@
                     canJump = true;
                 }
 
-                // Arma Sway e Renderização
+                // Arma Sway
                 if (weapon) {
                     const isMoving = velocity.x*velocity.x + velocity.z*velocity.z > 1;
                     if(isMoving) { weapon.position.x = 0.3 + Math.cos(time*0.01)*0.02; weapon.position.y = -0.3 + Math.sin(time*0.02)*0.02; }
@@ -444,17 +471,33 @@
                 if(p.userData.life <= 0) { scene.remove(p); particles.splice(i,1); }
             }
 
-            // Remote Players
+            // Remote Players Animation
             for(let id in remotePlayers) {
                 const rp = remotePlayers[id];
-                rp.mesh.position.lerp(rp.target, 0.2);
-                rp.mesh.rotation.y += (rp.rot - rp.mesh.rotation.y) * 0.2;
+                
+                if (rp.dead) {
+                    // Animação de Morte 3ª Pessoa (Deitar)
+                    // Rotaciona 90 graus no eixo X (ou Z) para ficar no chão
+                    if (rp.mesh.rotation.x > -Math.PI / 2) {
+                        rp.mesh.rotation.x -= delta * 5;
+                        rp.mesh.position.y = 0.2; // Garante que fica no chão
+                    }
+                } else {
+                    // Normal
+                    rp.mesh.rotation.x = 0;
+                    rp.mesh.position.lerp(rp.target, 0.2);
+                    // Interpola rotação Y suavemente
+                    let diff = rp.rot - rp.mesh.rotation.y;
+                    while (diff > Math.PI) diff -= Math.PI * 2;
+                    while (diff < -Math.PI) diff += Math.PI * 2;
+                    rp.mesh.rotation.y += diff * 0.2;
+                }
             }
 
             renderer.render(scene, camera);
         }
 
-        // --- TIRO E AUDIO ---
+        // --- TIRO E AÇÕES ---
         function shoot() {
             const stats = weapons[currentWeapon];
             const now = performance.now();
@@ -477,23 +520,20 @@
                 end.copy(playerHits[0].point);
                 const hitObj = playerHits[0].object;
                 let targetId = null;
-                // Procura recursivamente a qual player este objeto (ou pai dele) pertence
                 for(let uid in remotePlayers) {
                     const pMesh = remotePlayers[uid].mesh;
-                    let found = false;
-                    // Verifica se o objeto atingido é parte da malha do jogador
-                    hitObj.traverseAncestors((ancestor) => {
-                        if (ancestor === pMesh) found = true;
-                    });
-                    if (found || hitObj === pMesh) { targetId = uid; break; }
+                    // Verifica se atingiu mesh do player E se ele não está morto
+                    if (!remotePlayers[uid].dead) {
+                        let found = false;
+                        hitObj.traverseAncestors((ancestor) => { if (ancestor === pMesh) found = true; });
+                        if (found || hitObj === pMesh) { targetId = uid; break; }
+                    }
                 }
 
-                if (targetId && remotePlayers[targetId]) {
+                if (targetId) {
                     playSpatialSound('hit_marker');
                     createParticles(end, 0xff0000, 10);
                     
-                    // Cálculo de Dano Corrigido
-                    // Pegamos a vida conhecida localmente e subtraímos
                     const currentHP = remotePlayers[targetId].health || 100;
                     const newHP = Math.max(0, currentHP - stats.damage);
                     
@@ -570,61 +610,53 @@
         function respawnPlayerSafe() {
             const sp = spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
             camera.position.set(sp.x, 10, sp.z);
+            camera.rotation.set(0, 0, 0); // Reseta rotação (morte)
             velocity.set(0,0,0);
         }
 
-        // Remote Player Management (CORRIGIDO: Modelo Bot Completo + LastUpdate)
+        // Remote Player Management
         function spawnRemotePlayer(id, data) {
             const g = new THREE.Group();
             
-            // Materiais
+            // Modelos detalhados
             const skin = new THREE.MeshLambertMaterial({ color: 0xffdbac });
             const uniform = new THREE.MeshLambertMaterial({ color: 0x2a3b4c });
             const vest = new THREE.MeshLambertMaterial({ color: 0x111111 });
             const pants = new THREE.MeshLambertMaterial({ color: 0x222222 });
 
-            // Torso (Parent) - Corrigido para posição relativa dentro do grupo
             const torso = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.8, 0.45), uniform);
-            torso.position.y = 1.4; 
-            g.add(torso);
+            torso.position.y = 1.4; g.add(torso);
 
-            // Colete
             const vMesh = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.5, 0.5), vest);
             vMesh.position.y = 0.1; torso.add(vMesh);
 
-            // Cabeça
             const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.45, 0.45), skin);
             head.position.y = 0.7; torso.add(head);
 
-            // Braços
             const armGeo = new THREE.BoxGeometry(0.2, 0.7, 0.2);
             const armL = new THREE.Mesh(armGeo, uniform); armL.position.set(-0.5, 0.3, 0); torso.add(armL);
             const armR = new THREE.Mesh(armGeo, uniform); armR.position.set(0.5, 0.3, 0); torso.add(armR);
 
-            // Arma na mão
             const gunGroup = new THREE.Group(); gunGroup.position.set(0, -0.4, 0.4); armR.add(gunGroup);
             const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.15, 0.6), new THREE.MeshLambertMaterial({color:0x333333}));
             gunGroup.add(gunBody);
 
-            // Pernas
             const legGeo = new THREE.BoxGeometry(0.25, 0.8, 0.25);
             const legL = new THREE.Mesh(legGeo, pants); legL.position.set(-0.2, -0.4, 0); torso.add(legL);
             const legR = new THREE.Mesh(legGeo, pants); legR.position.set(0.2, -0.4, 0); torso.add(legR);
 
-            // Posição no mundo (data.y agora representa o CHÃO)
             g.position.set(data.x, data.y, data.z);
-            
             scene.add(g);
-            // Armazena 'lastUpdate' para limpar fantasmas
-            remotePlayers[id] = { mesh: g, target: g.position.clone(), rot: 0, health: data.health || 100, lastUpdate: Date.now() };
+            remotePlayers[id] = { mesh: g, target: g.position.clone(), rot: 0, health: data.health || 100, dead: false, lastUpdate: Date.now() };
         }
 
         function updateRemotePlayer(id, data) {
             if(remotePlayers[id]) {
-                remotePlayers[id].target.set(data.x, data.y, data.z); // Recebe y do chão
+                remotePlayers[id].target.set(data.x, data.y, data.z);
                 remotePlayers[id].rot = data.ry;
                 if(data.health !== undefined) remotePlayers[id].health = data.health;
-                remotePlayers[id].lastUpdate = Date.now(); // Atualiza heartbeat
+                if(data.dead !== undefined) remotePlayers[id].dead = data.dead;
+                remotePlayers[id].lastUpdate = Date.now();
             }
         }
         function removeRemotePlayer(id) {
@@ -636,9 +668,10 @@
                 lastSyncTime = now;
                 updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'players', localPlayerId), {
                     x: camera.position.x, 
-                    y: camera.position.y - physicsParams.playerHeight, // CORREÇÃO: Envia Y do Chão (Pés)
+                    y: camera.position.y - physicsParams.playerHeight,
                     z: camera.position.z,
                     ry: camera.rotation.y, 
+                    dead: isDead,
                     lastSeen: serverTimestamp()
                 }).catch(()=>{});
             }
@@ -654,47 +687,43 @@
                 isDead = true; 
                 document.exitPointerLock();
                 
-                // UI de Respawn
-                const menu = document.getElementById('menu-overlay');
-                const btn = document.getElementById('btn-play');
-                const status = document.getElementById('status-msg');
-                
-                menu.style.display = 'flex';
-                btn.style.display = 'none'; // Esconde botão para auto-respawn
-                
+                // Marca morte no BD
+                updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'players', localPlayerId), {
+                    dead: true,
+                    health: 0
+                }).catch(()=>{});
+
+                // UI e Timer
+                const timerEl = document.getElementById('respawn-timer');
+                timerEl.style.display = 'block';
                 let count = 3;
-                status.innerText = `RENASCENDO EM ${count}...`;
+                timerEl.innerText = `RENASCENDO EM ${count}...`;
                 
                 const interval = setInterval(() => {
                     count--;
                     if (count > 0) {
-                        status.innerText = `RENASCENDO EM ${count}...`;
+                        timerEl.innerText = `RENASCENDO EM ${count}...`;
                     } else {
                         clearInterval(interval);
-                        status.innerText = "RENASCENDO...";
+                        timerEl.style.display = 'none';
                         
-                        // Reset Logico
+                        // Respawn
                         gameStarted = true;
                         isDead = false;
                         playerHealth = 100;
                         updateHUD();
                         respawnPlayerSafe();
                         
-                        // Atualiza DB
+                        // Atualiza DB: Vivo novamente
                         updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'players', localPlayerId), {
                             health: 100,
+                            dead: false,
                             x: camera.position.x,
-                            y: camera.position.y,
-                            z: camera.position.z,
-                            lastSeen: serverTimestamp()
+                            y: camera.position.y - physicsParams.playerHeight,
+                            z: camera.position.z
                         }).catch(()=>{});
 
-                        // Tenta travar o mouse (pode falhar sem clique)
                         document.body.requestPointerLock();
-                        
-                        // UI Reset
-                        menu.style.display = 'none';
-                        btn.style.display = 'block'; 
                     }
                 }, 1000);
             }
@@ -708,7 +737,6 @@
         function init() {
             scene = new THREE.Scene(); scene.background = new THREE.Color(0x87CEEB); scene.fog = new THREE.Fog(0x87CEEB, 0, 150);
             
-            // CAMERA
             camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.05, 1000); 
             camera.rotation.order = 'YXZ';
             scene.add(camera);
